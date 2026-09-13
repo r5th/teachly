@@ -13,7 +13,9 @@
    Selection Q&A history re-homed to a collapsible sidebar
    section; adaptive Discuss thread moved directly below the
    proposal card. LLMService seam, adaptive meter/proposal/
-   stepper, notes and settings intact.
+   stepper, notes and settings intact. Selection bubble answers
+   stream chunk-by-chunk (chatStream with mock demo streaming;
+   graceful non-streaming fallback when the provider blocks it).
    v1.1 legacy: provider/model presets, clipboard image paste,
    refined bubble layout, viewable notes, adaptive workspace.
    Standing UI rule: NO emojis anywhere — text or inline SVG only.
@@ -295,8 +297,28 @@ textarea.input{resize:vertical; min-height:70px; line-height:1.5;}
 }
 .attBtn:hover{color:var(--text); border-color:var(--accent);}
 .attBtn svg{width:13px; height:13px; stroke:currentColor; fill:none; stroke-width:1.6;}
-#bubRefSel{background:var(--panel2); border:1px solid var(--border2); color:var(--muted); border-radius:8px;
-  padding:5px 8px; font-size:12px; max-width:170px; outline:none;}
+/* Reference picker (Card 3, topic 2 signed-off design): full untruncated
+   lesson titles; search/filter input only when the workspace has >5 lessons. */
+#refPicker{position:relative;}
+#refPickerBtn{background:var(--panel2); border:1px solid var(--border2); color:var(--muted); border-radius:8px;
+  padding:5px 8px; font-size:12px; max-width:170px; outline:none; cursor:pointer;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+#refPickerBtn:hover{color:var(--text); border-color:var(--accent);}
+#refPickerPanel{position:absolute; bottom:calc(100% + 6px); left:0; z-index:30; width:280px; max-width:78vw;
+  background:var(--panel); border:1px solid var(--border2); border-radius:10px; box-shadow:var(--shadow);
+  padding:6px; display:flex; flex-direction:column; gap:6px;}
+#refPickerSearch{background:var(--panel2); border:1px solid var(--border2); color:var(--text); border-radius:7px;
+  padding:6px 8px; font-size:12px; outline:none; width:100%;}
+#refPickerSearch:focus{border-color:var(--accent);}
+#refPickerList{max-height:220px; overflow-y:auto; display:flex; flex-direction:column;}
+.refItem{display:flex; gap:8px; padding:7px 9px; border-radius:7px; cursor:pointer;
+  font-size:12.5px; color:var(--muted); align-items:baseline; line-height:1.45;}
+.refItem:hover{background:var(--panel2); color:var(--text);}
+.refItem.selected{background:var(--accent-soft); color:var(--text);}
+.refItem .refNum{font-size:11px; font-weight:700; color:var(--accent); flex-shrink:0;}
+/* Full titles: never truncated or abbreviated — long titles wrap. */
+.refItem .refTitle{white-space:normal; overflow-wrap:anywhere;}
+.refEmpty{padding:10px 9px; font-size:12px; color:var(--faint); font-style:italic;}
 #bubImages{display:flex; gap:6px; flex-wrap:wrap; margin-top:8px;}
 .thumbWrap{position:relative; width:52px; height:52px; border-radius:8px; overflow:hidden; border:1px solid var(--border2);}
 .thumbWrap img{width:100%; height:100%; object-fit:cover;}
@@ -317,6 +339,13 @@ textarea.input{resize:vertical; min-height:70px; line-height:1.5;}
 #bubAns ul,#bubAns ol{padding-left:20px; margin-bottom:8px;}
 #bubAns code{font-family:Consolas,monospace; font-size:12px; background:var(--panel3); padding:1px 5px; border-radius:4px;}
 .bubMini{padding:6px 10px; font-size:12px;}
+/* streaming state: pulsing caret appended while chunks arrive */
+#bubAns.streaming{border-color:var(--accent);}
+.streamCaret{display:inline-block; width:7px; height:14px; margin-left:3px; vertical-align:-2px;
+  background:var(--accent); border-radius:2px; animation:streamBlink .8s steps(1) infinite;}
+@keyframes streamBlink{50%{opacity:0;}}
+#bubStreamLbl{display:none; font-size:11px; color:var(--accent); margin-top:4px;}
+#bubStreamLbl.on{display:block;}
 
 /* ============ ADAPTIVE: understanding meter (top-right) ============ */
 #meterWrap{
@@ -410,6 +439,30 @@ textarea.input{resize:vertical; min-height:70px; line-height:1.5;}
 .flashNote{animation:flashNote 1.6s ease 2;}
 @keyframes flashNote{0%,100%{border-color:var(--border2);} 50%{border-color:var(--accent); box-shadow:0 0 0 5px var(--accent-soft);}}
 
+/* ============ LAYOUT SYSTEM (v1.2 Card 1): presets + resizable panes ============ */
+#layoutToggleWrap{
+  position:fixed; top:14px; z-index:70; left:292px;   /* left is kept in sync with the sidebar width by JS */
+}
+#layoutToggleWrap[hidden]{display:none;}
+#layoutToggle{
+  display:inline-flex; background:var(--panel); border:1px solid var(--border2); border-radius:10px;
+  padding:3px; gap:3px; box-shadow:var(--shadow); font-family:var(--font-ui);
+}
+#layoutToggle .ltBtn{
+  border:none; background:transparent; color:var(--muted); font-size:12px; font-weight:600;
+  padding:5px 12px; border-radius:7px; letter-spacing:.02em;
+}
+#layoutToggle .ltBtn:hover{color:var(--text); background:var(--panel3);}
+#layoutToggle .ltBtn.active{background:var(--accent-soft); color:var(--accent);}
+#sbDivider{
+  width:6px; flex-shrink:0; cursor:col-resize; background:transparent;
+  border-right:1px solid var(--border);
+}
+#sbDivider:hover, body.resizing #sbDivider{background:var(--accent-soft); border-right-color:var(--accent2);}
+body.resizing{cursor:col-resize; user-select:none;}
+body[data-view="focus"] #sidebar{display:none !important;}   /* FOCUS preset: sidebar collapsed */
+body[data-view="focus"] #sbDivider{display:none !important;}
+body[data-view="focus"] #lessonWrap{max-width:960px;}        /* reference emphasis: wider workspace */
 /* ============ SETTINGS MODAL ============ */
 #modalOverlay{
   position:fixed; inset:0; background:rgba(4,6,10,.66); z-index:150; display:none;
@@ -452,6 +505,13 @@ textarea.input{resize:vertical; min-height:70px; line-height:1.5;}
 #nA p{margin-bottom:8px;} #nA p:last-child{margin-bottom:0;}
 #nA ul,#nA ol{padding-left:20px; margin-bottom:8px;}
 #nFoot{display:flex; gap:8px; justify-content:flex-end; margin-top:16px;}
+/* edit mode inside the note view modal */
+.nEditArea{margin-bottom:10px;}
+.nEditArea textarea{width:100%; min-height:110px;}
+.nEditBtns{display:none; gap:8px; justify-content:flex-end; margin-top:4px;}
+.nEditBtns.on{display:flex;}
+.btn-danger{color:#f7768e; border-color:rgba(247,118,142,.45);}
+.btn-danger:hover{background:rgba(247,118,142,.1); border-color:#f7768e;}
 
 /* toast */
 #toast{position:fixed; bottom:16px; right:18px; z-index:300;
@@ -497,7 +557,7 @@ textarea.input{resize:vertical; min-height:70px; line-height:1.5;}
       </div>
       <div id="startHintSteps">
         <div class="stepCard"><span class="stepNum">1</span> Type a topic and send — I build the workspace behind a live progress panel.</div>
-        <div class="stepCard"><span class="stepNum">2</span> Highlight any sentence in a lesson → ask about it, attach images &amp; links. The more you ask, the more I learn about you (top-right meter).</div>
+        <div class="stepCard"><span class="stepNum">2</span> Highlight any sentence in a lesson - then ask about it, attach images &amp; links. The more you ask, the more I learn about you (top-right meter).</div>
         <div class="stepCard"><span class="stepNum">3</span> Every Q&amp;A is stored in the sidebar's Selection Q&amp;A history. Everything auto-saves locally.</div>
       </div>
     </div>
@@ -544,6 +604,7 @@ textarea.input{resize:vertical; min-height:70px; line-height:1.5;}
         <button class="btn" id="openSettingsBtn2" title="Settings">Settings</button>
       </div>
     </aside>
+    <div id="sbDivider" title="Drag to resize the sidebar"></div>
     <main id="mainArea">
       <div id="lessonWrap">
         <div id="lessonTitle"></div>
@@ -555,6 +616,12 @@ textarea.input{resize:vertical; min-height:70px; line-height:1.5;}
         </div>
       </div>
     </main>
+    <div id="layoutToggleWrap" hidden>
+      <div id="layoutToggle" role="group" aria-label="Layout preset">
+        <button class="ltBtn active" data-view="content">Content</button>
+        <button class="ltBtn" data-view="focus">Focus</button>
+      </div>
+    </div>
   </div>
 
   <!-- ================= ADAPTIVE: understanding meter ================= -->
@@ -585,19 +652,26 @@ textarea.input{resize:vertical; min-height:70px; line-height:1.5;}
         <span class="attLabel">Attach</span>
         <button class="attBtn" id="bubImgBtn"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1" y="1" width="14" height="11" rx="2"/><circle cx="8" cy="8" r="1.6"/><path d="M1 14 L8 12 L15 14"/></svg> Image</button>
         <button class="attBtn" id="bubLinkBtn"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 13 L15 13 M12 13 L12 7 L15 10"/><path d="M3 2 L13 10"/></svg> Link</button>
-        <select id="bubRefSel" title="Reference another part of the workspace"></select>
+        <div id="refPicker">
+          <button type="button" id="refPickerBtn" title="Reference another part of the workspace">Reference: none</button>
+          <div id="refPickerPanel" hidden>
+            <input type="text" id="refPickerSearch" placeholder="Filter lessons…" hidden>
+            <div id="refPickerList"></div>
+          </div>
+        </div>
         <input type="file" id="bubFileInput" accept="image/*" multiple hidden>
       </div>
       <div id="bubImages"></div>
       <div id="bubLinks"></div>
+      <div id="bubRes">
+        <div id="bubThink"><span class="spin" style="flex-shrink:0"></span> Teaching assistant is thinking…</div>
+        <div id="bubAns"></div>
+        <div id="bubStreamLbl">streaming…</div>
+      </div>
       <div class="actionsRow">
         <button class="btn btn-primary" id="bubAskBtn">Ask</button>
         <button class="btn btn-primary bubMini" id="bubInsertBtn" style="display:none">Insert into workspace</button>
         <button class="btn bubMini" id="bubAgainBtn" style="display:none">New question</button>
-      </div>
-      <div id="bubRes">
-        <div id="bubThink"><span class="spin" style="flex-shrink:0"></span> Teaching assistant is thinking…</div>
-        <div id="bubAns"></div>
       </div>
     </div>
   </div>
@@ -648,7 +722,17 @@ textarea.input{resize:vertical; min-height:70px; line-height:1.5;}
       <div id="nQ"></div>
       <div class="nSecLabel">Answer</div>
       <div id="nA"></div>
+      <div class="nEditArea" id="nEditArea" hidden>
+        <div class="nSecLabel">Edit answer (markdown)</div>
+        <textarea class="input" id="nEditTa" spellcheck="false"></textarea>
+        <div class="nEditBtns" id="nEditBtns">
+          <button class="btn" id="nEditCancel">Cancel</button>
+          <button class="btn btn-primary" id="nEditSave">Save changes</button>
+        </div>
+      </div>
       <div id="nFoot">
+        <button class="btn" id="nEdit">Edit</button>
+        <button class="btn btn-danger" id="nDelete">Delete</button>
         <button class="btn" id="nLocate">Locate in lesson</button>
         <span style="flex:1"></span>
         <button class="btn" id="nClose">Close</button>
@@ -752,7 +836,8 @@ const Storage = {
 };
 const KEYS = {
   settings:'tp_settings_v1', workspace:'tp_workspace_v1',
-  selqa:'tp_selqa_v1', adaptive:'tp_adaptive_v1'
+  selqa:'tp_selqa_v1', adaptive:'tp_adaptive_v1',
+  layout:'tp_layout_v1'
 };
 
 /* ============================================================
@@ -766,6 +851,9 @@ const KEYS = {
    Interface:
      configure({baseUrl, model, apiKey, demo, provider}) -> void
      chat(messages, opts) -> Promise<string>     // text reply
+     chatStream(messages, opts, onChunk) -> Promise<string>
+       // like chat() but delivers text incrementally via onChunk(chunk);
+       // falls back to one-piece non-streaming when the provider blocks it
        messages: [{role:'system'|'user'|'assistant', content:string|array}]
          content items: {type:'text',text} | {type:'image_url',image_url:{url}}
        opts: { json?:boolean, temperature?:number }
@@ -829,6 +917,57 @@ const LLMService = (() => {
     }
     const data = await res.json();
     return data.choices?.[0]?.message?.content ?? '';
+  }
+
+  /* ---------------- real (OpenAI-compatible REST), streaming ----------------
+     SSE parse of the same endpoint with stream:true. Browser-side
+     streaming works from a static origin only when the provider sends
+     CORS headers — OpenRouter does (Access-Control-Allow-Origin: *),
+     some providers (notably api.openai.com since 2026) do not. When
+     streaming is impossible the caller falls back to non-streaming. */
+  async function _realChatStream(messages, opts, onChunk){
+    if (!cfg.apiKey)  throw new Error('No API key set. Open Settings and add your key, or enable Demo mode.');
+    if (!cfg.baseUrl) throw new Error('No base URL set (OpenAI-compatible endpoint).');
+    if (!cfg.model)   throw new Error('No model set.');
+    const url = cfg.baseUrl.replace(/\/+$/, '') + '/chat/completions';
+    const body = {
+      model: cfg.model,
+      messages,
+      temperature: opts.temperature ?? 0.7,
+      stream: true
+    };
+    if (opts.json) body.response_format = { type:'json_object' };
+    const res = await fetch(url, {
+      method:'POST',
+      headers: { 'Content-Type':'application/json', 'Authorization':'Bearer ' + cfg.apiKey },
+      body: JSON.stringify(body)
+    });
+    if (!res.ok || !res.body || typeof res.body.getReader !== 'function'){
+      throw new Error('LLM stream unavailable (' + res.status + ')');   // caller falls back to non-streaming
+    }
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let buf = '', full = '', done = false;
+    while (!done){
+      const { value, done: rd } = await reader.read();
+      if (rd) break;
+      buf += dec.decode(value, { stream:true });
+      const lines = buf.split('\n');
+      buf = lines.pop();                     // keep any partial line
+      for (const line of lines){
+        const s = line.trim();
+        if (!s.startsWith('data:')) continue;
+        const payload = s.slice(5).trim();
+        if (payload === '[DONE]'){ done = true; break; }
+        try {
+          const j = JSON.parse(payload);
+          const t = j.choices?.[0]?.delta?.content;
+          if (typeof t === 'string' && t){ full += t; onChunk(t); }
+        } catch(e){ /* keep-alive or partial JSON — ignore */ }
+      }
+    }
+    if (!full) throw new Error('LLM stream produced no content.');
+    return full;
   }
 
   /* ---------------- demo (local simulation) ---------------- */
@@ -1131,6 +1270,40 @@ const LLMService = (() => {
     return _realChat(messages, opts);
   }
 
+  /* Streaming chat: emits text chunks via onChunk as they arrive and
+     resolves to the full text. Demo mode = the mock streaming provider:
+     the same simulated reply is delivered in timed word chunks so the
+     UI streaming path is testable with NO real LLM calls. Real mode:
+     SSE streaming against the configured endpoint; if the endpoint
+     refuses streaming (CORS, no stream support, network), it falls
+     back gracefully to the non-streaming chat() — same result, just
+     delivered in one piece. onChunk is never called on the fallback. */
+  async function chatStream(messages, opts = {}, onChunk){
+    if (cfg.demo){
+      const full = await _demoChat(messages, opts);
+      // mock streaming: split into word-group chunks with a small delay each
+      if (typeof onChunk === 'function'){
+        const words = String(full).split(/(\s+)/);
+        let chunk = '';
+        for (let i = 0; i < words.length; i++){
+          chunk += words[i];
+          if (chunk.length >= 24 || i === words.length - 1){
+            onChunk(chunk);
+            chunk = '';
+            await sleep(28);
+          }
+        }
+      }
+      return full;
+    }
+    try {
+      return await _realChatStream(messages, opts, onChunk);
+    } catch(err){
+      // graceful fallback: non-streaming behavior, one-piece result
+      return await _realChat(messages, opts);
+    }
+  }
+
   /* adaptive: propose workspace changes (demo-simulated or real LLM call) */
   async function proposeChanges(ctx){
     if (cfg.demo) return _demoProposal(ctx, null);
@@ -1192,7 +1365,7 @@ const LLMService = (() => {
     return 'Connected — model replied: ' + reply.trim();
   }
 
-  return { configure, chat, proposeChanges, reviseProposal, applyChange, ping, isDemo, source, getConfig };
+  return { configure, chat, chatStream, proposeChanges, reviseProposal, applyChange, ping, isDemo, source, getConfig };
 })();
 
 /* ============================================================
@@ -1251,7 +1424,7 @@ const App = {
   ws: null,      // { title, mission, outline, lessons, notes[], topic, createdAt }
   currentLessonId: null,
   selQA: [],     // [{ts, lessonId, lessonTitle, selection, question, answer}] — Option C history (never pruned)
-  bubble: { lessonId:null, images:[], links:[], refs:[] }
+  bubble: { lessonId:null, images:[], links:[], refs:[], refId:null }
 };
 
 const PROVIDERS = {
@@ -1600,6 +1773,69 @@ async function runStepper(){
 }
 
 /* ============================================================
+   Layout system (v1.2 Card 1): CONTENT / FOCUS presets and a
+   user-resizable sidebar divider. State persists in localStorage
+   under tp_layout_v1 and is restored on load. Switching presets
+   never touches workspace/Q&A state — it only toggles sidebar
+   visibility and width.
+   ============================================================ */
+const Layout = {
+  view: 'content',     // 'content' | 'focus'
+  sidebarW: 264,       // px, sidebar width in CONTENT view
+  MIN_W: 180,
+  save(){
+    Storage.set(KEYS.layout, { view:this.view, sidebarW:this.sidebarW });
+  },
+  load(){
+    const s = Storage.get(KEYS.layout, null);
+    if (!s) return;
+    if (s.view === 'content' || s.view === 'focus') this.view = s.view;
+    if (typeof s.sidebarW === 'number' && s.sidebarW >= this.MIN_W && s.sidebarW <= 800) this.sidebarW = s.sidebarW;
+  },
+  apply(){
+    document.body.dataset.view = this.view;
+    const wrap = $('layoutToggleWrap');
+    wrap.hidden = !App.ws;
+    if (!App.ws) return;
+    document.querySelectorAll('#layoutToggle .ltBtn').forEach(b =>
+      b.classList.toggle('active', b.dataset.view === this.view));
+    if (this.view === 'content'){
+      $('sidebar').style.width = this.sidebarW + 'px';
+      $('sidebar').style.minWidth = this.sidebarW + 'px';
+    }
+    this.placeToggle();
+  },
+  placeToggle(){
+    const wrap = $('layoutToggleWrap');
+    wrap.style.left = (this.view === 'content' ? this.sidebarW + 14 : 14) + 'px';
+  },
+  setView(v){
+    if (v !== 'content' && v !== 'focus') return;
+    this.view = v; this.apply(); this.save();
+  },
+  startDrag(e){
+    if (this.view !== 'content' || Adaptive.busy) return;
+    e.preventDefault();
+    document.body.classList.add('resizing');
+    const startX = e.clientX, startW = this.sidebarW;
+    const onMove = (ev) => {
+      this.sidebarW = Math.max(this.MIN_W, Math.min(window.innerWidth - 220, startW + (ev.clientX - startX)));
+      $('sidebar').style.width = this.sidebarW + 'px';
+      $('sidebar').style.minWidth = this.sidebarW + 'px';
+      this.placeToggle();
+    };
+    const onUp = () => {
+      document.body.classList.remove('resizing');
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      this.save();
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  }
+};
+
+/* ============================================================
    UI renderers
    ============================================================ */
 function renderSourceBadges(){
@@ -1613,6 +1849,7 @@ function renderSourceBadges(){
 
 /* ---- start state ---- */
 function showStart(){
+  $('layoutToggleWrap').hidden = true;
   $('startView').hidden = false;
   $('workspaceView').hidden = true;
   $('setupView').hidden = true;
@@ -1703,6 +1940,7 @@ function renderLesson(){
 }
 
 function showWorkspace(){
+  Layout.apply();
   $('startView').hidden = true;
   $('setupView').hidden = true;
   $('workspaceView').hidden = false;
@@ -1745,7 +1983,49 @@ function openNote(id){
   $('nA').innerHTML = renderMarkdown(n.answer || '');
   $('noteOverlay').classList.add('show');
 }
-function closeNote(){ $('noteOverlay').classList.remove('show'); currentNoteId = null; }
+function closeNote(){
+  $('noteOverlay').classList.remove('show');
+  currentNoteId = null;
+  noteEditExit();                 // always leave edit mode when the modal closes
+}
+/* ---- note edit: open the note's answer in the editor, save back to storage ---- */
+function noteEditEnter(){
+  const n = (App.ws.notes || []).find(x => x.id === currentNoteId);
+  if (!n) return;
+  $('nEditTa').value = n.answer || '';
+  $('nEditArea').hidden = false;
+  $('nEditBtns').classList.add('on');
+  $('nEdit').style.display = 'none';
+  $('nEditTa').focus();
+}
+function noteEditExit(){
+  $('nEditArea').hidden = true;
+  $('nEditBtns').classList.remove('on');
+  $('nEdit').style.display = '';
+}
+function noteEditSave(){
+  const n = (App.ws.notes || []).find(x => x.id === currentNoteId);
+  if (!n) return;
+  n.answer = $('nEditTa').value;
+  n.editedTs = now();             // record the edit without losing the original timestamp
+  saveWorkspace();
+  $('nA').innerHTML = renderMarkdown(n.answer);   // reflect the update immediately in the view
+  renderLesson();                 // sidebar + inline note cards show the new content
+  noteEditExit();
+  toast('Note updated.');
+}
+/* ---- note delete: confirm, remove from storage, return to the lesson ---- */
+function noteDelete(){
+  const n = (App.ws.notes || []).find(x => x.id === currentNoteId);
+  if (!n) return;
+  if (!confirm('Delete this note? This cannot be undone.')) return;
+  App.ws.notes = App.ws.notes.filter(x => x.id !== n.id);
+  saveWorkspace();
+  closeNote();
+  renderLesson();                 // returns the user to the lesson/notes list, note gone
+  renderSidebar();
+  toast('Note deleted.');
+}
 function locateNote(){
   const n = (App.ws.notes || []).find(x => x.id === currentNoteId);
   if (!n) return;
@@ -1896,10 +2176,10 @@ const Bubble = {
   open: false,
   asking: false,
 
-  openAt(selText, x, y, lessonId){
+  openAt(selText, rect, lessonId){
     this.open = true;
+    this.range = null;
     App.bubble.lessonId = lessonId;
-    this.el.hidden = false;
     $('bubBody').scrollTop = 0;
     $('selText').textContent = selText;
     $('bubQ').value = '';
@@ -1912,18 +2192,71 @@ const Bubble = {
     $('bubAgainBtn').style.display = 'none';
     this.resetAttachments();
 
-    // reference selector
-    const sel = $('bubRefSel');
-    sel.innerHTML = '<option value="">Reference: none</option>' +
-      App.ws.lessons.map(l => '<option value="' + esc(l.id) + '">' + esc('Lesson ' + l.id.replace(/^l/i, '') + ': ' + l.title) + '</option>').join('');
+    // Reference picker (Card 3, topic 2 signed-off design): full untruncated
+    // lesson titles; search input appears only when lesson count > 5.
+    App.bubble.refId = null;
+    this.refreshRefPicker();
 
-    this.position(x, y);
+    // Signed-off design (Card 3, topic 1): rect-aware flip placement.
+    // Visible-but-transparent during measurement (offsetWidth is 0 while
+    // [hidden]), so the bubble is never shown in a wrong spot.
+    this.range = rect;
+    this.el.hidden = false;
+    this.el.style.visibility = 'hidden';
+    this.place();
+    this.el.style.visibility = '';
     $('bubQ').focus();
   },
   resetAttachments(){
     App.bubble.images = []; App.bubble.links = [];
     $('bubImages').innerHTML = ''; $('bubLinks').innerHTML = '';
     $('bubFileInput').value = '';
+  },
+  /* ---- reference picker (Card 3, topic 2 signed-off design) ----
+     Full untruncated lesson titles; search/filter input only when the
+     workspace has MORE than 5 lessons; case-insensitive substring filter
+     on title; inline "No lessons match" empty state. */
+  REF_SEARCH_THRESHOLD: 5,
+  closeRefPicker(){ $('refPickerPanel').hidden = true; },
+  refLabel(id){
+    const l = App.ws.lessons.find(x => x.id === id);
+    return l ? ('Lesson ' + l.id.replace(/^l/i, '') + ': ' + l.title) : 'Reference: none';
+  },
+  refreshRefPicker(){
+    const lessons = App.ws.lessons || [];
+    $('refPickerBtn').textContent = App.bubble.refId ? this.refLabel(App.bubble.refId) : 'Reference: none';
+    $('refPickerBtn').title = 'Reference another part of the workspace' + ($('refPickerBtn').textContent !== 'Reference: none' ? ' — ' + $('refPickerBtn').textContent : '');
+    // search input ONLY when lesson count exceeds 5
+    $('refPickerSearch').hidden = lessons.length <= this.REF_SEARCH_THRESHOLD;
+    $('refPickerSearch').value = '';
+    this.renderRefList('');
+  },
+  renderRefList(query){
+    const lessons = App.ws.lessons || [];
+    const q = (query || '').trim().toLowerCase();
+    const list = $('refPickerList');
+    const rows = [];
+    rows.push('<div class="refItem' + (!App.bubble.refId ? ' selected' : '') + '" data-ref=""><span class="refNum">–</span><span class="refTitle">Reference: none</span></div>');
+    const shown = lessons.filter(l => !q || l.title.toLowerCase().includes(q));
+    for (const l of shown){
+      rows.push('<div class="refItem' + (App.bubble.refId === l.id ? ' selected' : '') + '" data-ref="' + esc(l.id) + '">' +
+        '<span class="refNum">' + esc(l.id.replace(/^l/i, '')) + '</span>' +
+        '<span class="refTitle">' + esc(l.title) + '</span></div>');
+    }
+    if (q && shown.length === 0){
+      rows.push('<div class="refEmpty">No lessons match</div>');
+    }
+    list.innerHTML = rows.join('');
+  },
+  toggleRefPicker(){
+    const panel = $('refPickerPanel');
+    if (panel.hidden){
+      this.refreshRefPicker();
+      panel.hidden = false;
+      if (!$('refPickerSearch').hidden) $('refPickerSearch').focus();
+    } else {
+      panel.hidden = true;
+    }
   },
   renderImageThumbs(){
     const box = $('bubImages');
@@ -1957,16 +2290,75 @@ const Bubble = {
   },
   close(){
     this.open = false;
+    this.range = null;
     this.el.hidden = true;
     const sel = window.getSelection(); if (sel) sel.removeAllRanges();
   },
-  position(x, y){
+  /* Signed-off placement spec (Card 3, topic 1):
+     - rect-aware: place below the selection rect if there is room, flip ABOVE
+       it otherwise; NEVER overlapping the rect either way.
+     - 8px gap between bubble and rect; horizontal clamp to the viewport with
+       an 8px margin.
+     - hidden until placed (openAt measures first, then unhides).
+     - reposition on scroll/resize while open. */
+  GAP: 8,
+  EDGE: 8,
+  place(rectOverride){
+    const r = rectOverride || this.range;
+    if (!r) return;
+    const rect = typeof r.getBoundingClientRect === 'function'
+      ? r.getBoundingClientRect()
+      : r;                                    // plain {top,bottom,left,right} also accepted
     const w = this.el.offsetWidth, h = this.el.offsetHeight;
     const vw = window.innerWidth, vh = window.innerHeight;
-    let left = Math.min(Math.max(8, x), vw - w - 8);
-    let top = (y + 12 + h <= vh - 8) ? y + 12 : Math.max(8, y - h - 12);
-    this.el.style.left = left + 'px';
-    this.el.style.top  = top + 'px';
+    const GAP = this.GAP, EDGE = this.EDGE;
+
+    // Horizontal: align to the rect's left edge (fallback to its right edge if
+    // the bubble would overflow), then clamp into the viewport.
+    let left = rect.left;
+    if (left + w > vw - EDGE) left = rect.right - w;
+    left = Math.min(Math.max(EDGE, left), Math.max(EDGE, vw - w - EDGE));
+
+    // Vertical: prefer BELOW the rect; flip ABOVE when there is no room below.
+    let below = rect.bottom + GAP + h <= vh - EDGE;
+    let above = rect.top - GAP - h >= EDGE;
+    let top;
+    if (below){
+      top = rect.bottom + GAP;
+    } else if (above){
+      top = rect.top - GAP - h;
+    } else {
+      // no clean space either side (tiny viewport): take the side with more
+      // room, still clamped so the bubble never sits on top of the rect.
+      const spaceBelow = vh - EDGE - rect.bottom;
+      const spaceAbove = rect.top - EDGE;
+      if (spaceBelow >= spaceAbove){
+        top = Math.min(rect.bottom + GAP, Math.max(EDGE, vh - h - EDGE));
+      } else {
+        top = Math.max(rect.top - GAP - h, EDGE);
+      }
+    }
+    // Last-resort vertical clamp (must never cover the selection rect itself).
+    if (top + h > rect.top - 1 && top < rect.bottom + 1){
+      top = below ? Math.max(EDGE, rect.top - GAP - h)
+                  : Math.min(rect.bottom + GAP, vh - h - EDGE);
+    }
+    top = Math.min(Math.max(EDGE, top), Math.max(EDGE, vh - h - EDGE));
+
+    this.el.style.left = Math.round(left) + 'px';
+    this.el.style.top  = Math.round(top) + 'px';
+  },
+  reposition(){
+    if (!this.open || !this.range) return;
+    // Re-measure the live range on scroll/resize; if the selection is gone,
+    // just keep the bubble where it is.
+    try {
+      const live = this.range.getBoundingClientRect
+        ? this.range.getBoundingClientRect()
+        : null;
+      if (live && (live.width || live.height)) this.place(live);
+      else this.place();
+    } catch(e){ this.place(); }
   }
 };
 
@@ -1994,14 +2386,21 @@ document.addEventListener('mouseup', (e) => {
   const inBubbleOrDock = anchor.parentElement.closest('#bubble');
   if (!inMain || inBubbleOrDock || !inLesson) return;
   if (Bubble.open && Bubble.el.contains(e.target)) return;
-  const rect = sel.getRangeAt(0).getBoundingClientRect();
-  Bubble.openAt(sel.toString().trim().slice(0, 600), rect.right, rect.bottom, $('lessonContent').dataset.lesson);
+  const range = sel.getRangeAt(0);
+  Bubble.openAt(sel.toString().trim().slice(0, 600), range.cloneRange(), $('lessonContent').dataset.lesson);
 });
+/* Signed-off spec: reposition the open bubble on scroll/resize. */
+document.addEventListener('scroll', () => Bubble.reposition(), true);
+window.addEventListener('resize', () => Bubble.reposition());
 document.addEventListener('mousedown', (e) => {
   if (Bubble.open && !Bubble.el.contains(e.target) && !e.target.closest('#lessonContent')) Bubble.close();
 });
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && Bubble.open) { Bubble.close(); }
+  if (e.key === 'Escape' && Bubble.open) {
+    // if the reference-picker panel is open, Esc closes only the panel
+    if (!$('refPickerPanel').hidden) return;
+    Bubble.close();
+  }
   if (e.key === 'Enter' && !e.shiftKey && document.activeElement === $('bubQ')) { e.preventDefault(); askSelection(); }
 });
 
@@ -2010,14 +2409,18 @@ async function askSelection(){
   const q = $('bubQ').value.trim();
   if (!q){ toast('Type a question first.'); return; }
   Bubble.asking = true;
+  Bubble.streaming = false;               // reset per-question streaming state
   $('bubAskBtn').disabled = true;
   $('bubAskBtn').textContent = 'Thinking…';
-  $('bubAskBtn').style.display = 'none';
+  $('bubInsertBtn').style.display = 'none';
+  $('bubAgainBtn').style.display = 'none';
   $('bubThink').style.display = 'flex';
   $('bubRes').classList.add('on');
   $('bubAns').innerHTML = '';
+  $('bubAns').classList.remove('streaming');
+  $('bubStreamLbl').classList.remove('on');
 
-  const refId = $('bubRefSel').value || null;
+  const refId = App.bubble.refId || null;
   const refs = [];
   if (refId){
     const rl = App.ws.lessons.find(l => l.id === refId);
@@ -2027,12 +2430,28 @@ async function askSelection(){
   const bubble = { selText: $('selText').textContent, question: q, images: App.bubble.images, links: App.bubble.links, refs };
 
   try {
-    const ans = await LLMService.chat(selectionMessages(bubble, lesson.title), { temperature: 0.6 });
+    let acc = '';                           // accumulated streamed text
+    let sawChunk = false;
+    const ans = await LLMService.chatStream(selectionMessages(bubble, lesson.title), { temperature: 0.6 }, (chunk) => {
+      if (!sawChunk){                       // first chunk: switch from "thinking" to streaming state
+        sawChunk = true;
+        Bubble.streaming = true;
+        $('bubThink').style.display = 'none';
+        $('bubStreamLbl').classList.add('on');
+        $('bubAns').classList.add('streaming');
+      }
+      acc += chunk;
+      $('bubAns').innerHTML = renderMarkdown(acc) + '<span class="streamCaret"></span>';
+      $('bubBody').scrollTop = $('bubBody').scrollHeight;
+    });
+    $('bubAns').classList.remove('streaming');
+    $('bubStreamLbl').classList.remove('on');
     App.bubble.lastAnswer = ans;           // held for "insert into workspace"
     App.bubble.lastQuestion = q;
     App.bubble.lastSelection = bubble.selText;
 
     // Option C: bubble shows ONLY this latest exchange; full history goes to the sidebar section.
+    // If streaming already rendered it, finalize in place; otherwise show the full answer at once.
     Bubble.showAnswer(ans);
 
     // accumulate in the sidebar Selection Q&A history (never pruned)
@@ -2051,6 +2470,8 @@ async function askSelection(){
     adaptiveRecordQuestion();
   } catch(err){
     $('bubThink').style.display = 'none';
+    $('bubAns').classList.remove('streaming');
+    $('bubStreamLbl').classList.remove('on');
     $('bubAskBtn').disabled = false;
     $('bubAskBtn').textContent = 'Ask';
     $('bubAskBtn').style.display = '';
@@ -2062,7 +2483,9 @@ async function askSelection(){
 }
 
 function showBubbleAnswerActions(){
-  $('bubAskBtn').style.display = 'none';
+  $('bubAskBtn').style.display = '';
+  $('bubAskBtn').disabled = false;
+  $('bubAskBtn').textContent = 'Ask';
   $('bubInsertBtn').style.display = '';
   $('bubAgainBtn').style.display = '';
 }
@@ -2072,7 +2495,8 @@ Bubble.showAnswer = function(md){
   $('bubThink').style.display = 'none';
   $('bubRes').classList.add('on');
   showBubbleAnswerActions();
-  this.el.style.top = Math.max(8, Math.min(parseInt(this.el.style.top,10), window.innerHeight - this.el.offsetHeight - 8)) + 'px';
+  // Answer may grow the bubble — re-run the signed-off rect-aware placement.
+  this.reposition();
 };
 
 function insertNoteFromBubble(){
@@ -2217,6 +2641,13 @@ function init(){
   if (Array.isArray(savedSelQA)) App.selQA = savedSelQA;
 
   adaptiveLoad();
+  // layout: restore persisted preset + sidebar width, wire controls (v1.2 Card 1)
+  Layout.load();
+  Layout.apply();
+  document.querySelectorAll('#layoutToggle .ltBtn').forEach(b =>
+    b.addEventListener('click', () => Layout.setView(b.dataset.view)));
+  $('sbDivider').addEventListener('mousedown', (e) => Layout.startDrag(e));
+  window.addEventListener('resize', () => Layout.placeToggle());
 
   const savedWs = Storage.get(KEYS.workspace, null);
   if (savedWs && Array.isArray(savedWs.lessons) && savedWs.lessons.length){
@@ -2329,6 +2760,10 @@ function init(){
   // note modal
   $('nClose').addEventListener('click', closeNote);
   $('nLocate').addEventListener('click', locateNote);
+  $('nEdit').addEventListener('click', noteEditEnter);
+  $('nEditCancel').addEventListener('click', noteEditExit);
+  $('nEditSave').addEventListener('click', noteEditSave);
+  $('nDelete').addEventListener('click', noteDelete);
   $('noteOverlay').addEventListener('mousedown', e => { if (e.target === $('noteOverlay')) closeNote(); });
 
   // bubble attachments + paste
@@ -2351,6 +2786,27 @@ function init(){
     const url = prompt('Paste a link (http(s)://) — v1 does not fetch its content, it is sent as a reference:');
     if (url) Bubble.addLink(url);
   });
+
+  // ---- reference picker events (Card 3, topic 2 signed-off design) ----
+  $('refPickerBtn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    Bubble.toggleRefPicker();
+  });
+  $('refPickerSearch').addEventListener('input', (e) => Bubble.renderRefList(e.target.value));
+  $('refPickerSearch').addEventListener('keydown', (e) => e.stopPropagation()); // Esc in search must not close the bubble
+  $('refPickerList').addEventListener('click', (e) => {
+    const item = e.target.closest('[data-ref]');
+    if (!item) return;
+    App.bubble.refId = item.dataset.ref || null;
+    $('refPickerBtn').textContent = App.bubble.refId ? Bubble.refLabel(App.bubble.refId) : 'Reference: none';
+    Bubble.closeRefPicker();
+  });
+  document.addEventListener('mousedown', (e) => {
+    if (!$('refPickerPanel').hidden && !e.target.closest('#refPicker')) Bubble.closeRefPicker();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !$('refPickerPanel').hidden) Bubble.closeRefPicker();
+  });
   $('bubImages').addEventListener('click', e => {
     const b = e.target.closest('.thumbX'); if (!b) return;
     App.bubble.images.splice(+b.dataset.i, 1);
@@ -2372,6 +2828,10 @@ function init(){
     // Option C: "New question" clears ONLY the bubble — the sidebar history keeps everything.
     $('bubRes').classList.remove('on'); $('bubAns').innerHTML='';
     $('bubAskBtn').style.display=''; $('bubAskBtn').disabled=false; $('bubAskBtn').textContent='Ask';
+    $('bubInsertBtn').style.display='none'; $('bubAgainBtn').style.display='none';
+    App.bubble.lastAnswer = null;
+    App.bubble.lastQuestion = null;
+    App.bubble.lastSelection = null;
     Bubble.resetAttachments(); $('bubQ').value=''; $('bubQ').focus();
   });
   $('bubClose').addEventListener('click', () => Bubble.close());
@@ -2411,7 +2871,7 @@ function init(){
 document.addEventListener('DOMContentLoaded', init);
 
 /* Expose a small debug/test surface (also used by automated checks). */
-window.TP = { LLMService, App, Adaptive, Bubble, Discuss, PROVIDERS, renderMarkdown, esc, renderSelQA, openNote };
+window.TP = { LLMService, App, Adaptive, Bubble, Discuss, PROVIDERS, renderMarkdown, esc, renderSelQA, openNote, closeNote, noteEditEnter, noteEditSave, noteDelete };
 </script>
 </body>
 </html>

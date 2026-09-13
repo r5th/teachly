@@ -79,6 +79,7 @@ workspace generation, quizzes, selection bubble with attachments, the **full ada
 - ✅ "New topic" resets to the chat-first start state (clears workspace/notes/history/adaptive) and purges the orphaned dock-chat key
 - ✅ Demo mode: full offline simulation, zero network calls
 - ✅ All LLM I/O isolated behind the `LLMService` seam (details below)
+- ✅ **Streaming bubble answers** via `LLMService.chatStream` — chunks render incrementally (caret + "streaming..." indicator); graceful non-streaming fallback when a provider blocks CORS
 
 ## localStorage keys & v1.2 migration
 
@@ -95,7 +96,7 @@ workspace, history, notes or adaptive progress is lost.
 
 ## Known limitations (v1.2)
 
-- **No streaming** — responses arrive whole. (The `chat()` seam returns a `Promise<string>`, so streaming can be added inside the service later without touching UI.)
+- **Streaming is provider-dependent** — `chatStream` streams chunk-by-chunk in Demo mode and with the OpenRouter preset (open CORS); providers that block CORS (e.g. OpenAI chat completions) transparently fall back to non-streaming (full answer, one piece). See "Streaming status" under Architecture.
 - **Links are not fetched** — pasted links are sent to the model as references; the page never fetches their content (browser CORS + scope). Stubbed per the spec.
 - **Images inline via data URLs** — up to 2 per question; large images bloat `localStorage` persistence only if inserted as notes (the note stores text, not the image — images are request-only).
 - **Markdown renderer is minimal** (headings, bold/italic, code, fenced code, lists, blockquotes, links, hr) — no tables/HTML passthrough by design (XSS-safe, everything is escaped).
@@ -114,35 +115,71 @@ workspace, history, notes or adaptive progress is lost.
    │  — knows nothing about fetch, endpoints, headers, keys
    ▼
  LLMService (index.html, one module)
-   ├─ chat(messages, {json?, temperature?}) → Promise<string>   ← THE SEAM
+   ├─ chat(messages, {json?, temperature?}) → Promise<string>          ← THE SEAM
+   ├─ chatStream(messages, opts, onChunk) → Promise<string>            ← streaming seam
+   │     same result as chat(), but text is delivered incrementally via
+   │     onChunk(chunk); transparently falls back to one-piece chat()
+   │     when the provider blocks streaming (CORS / non-OK / no
+   │     ReadableStream / empty stream — onChunk is never called then)
    ├─ proposeChanges({workspace, selQA}) → Promise<{changes[], rationale}>   ← adaptive
    ├─ reviseProposal(proposal, messages) → Promise<{...proposal}>            ← adaptive discussion
    ├─ applyChange(change, lesson) → Promise<{body, content, missionOverwrite}> ← adaptive per-op transform
    ├─ configure({baseUrl, model, apiKey, demo, provider})
    ├─ ping() / isDemo() / source() / getConfig()
    └─ two interchangeable implementations behind it:
-        • 'demo'   — local simulation (no network; adaptive proposals derived from real history)
+        • 'demo'   — local simulation (no network; adaptive proposals derived
+                     from real history; mock provider streams the answer in
+                     ~24-char timed word chunks, zero real LLM calls)
         • 'openai' — OpenAI / OpenRouter / any OpenAI-compatible
-                     POST {baseUrl}/chat/completions
+                     POST {baseUrl}/chat/completions (stream:true for chatStream,
+                     with SSE parsing + fallback to non-streaming)
                      (headers, endpoint, auth all live HERE — nowhere else)
 ```
 
-The rest of the app only ever calls `LLMService.chat(...)` / `proposeChanges(...)` / `reviseProposal(...)` with plain
+The rest of the app only ever calls `LLMService.chat(...)` / `chatStream(...)` / `proposeChanges(...)` / `reviseProposal(...)` with plain
 message arrays / context objects:
 
 ```
 [{role:'system'|'user'|'assistant', content: string | [{type:'text',text} | {type:'image_url',image_url:{url}}]}]
 ```
 
-**The future backend swap** (Option C from the idea note): implement the same methods on a server —
+### Streaming status (v1.2 Card 5)
 
-- `POST /api/llm/chat` — server holds the key, forwards to the model, returns the text (optionally streams);
-- `POST /api/llm/propose` / `POST /api/llm/revise` — adaptive proposal generation;
-- `POST /api/llm/ping` — connectivity test;
-- key never touches the page.
+**Streaming WORKS, verified end-to-end through the seam** — with one provider-dependent caveat:
 
-Then the in-page `LLMService` internals become thin `fetch('/api/llm/…', …)` calls — **zero UI changes**. The same
-swap point can also take over persistence (workspace/history/adaptive) when multi-device sync is needed.
+- **Demo mode (mock provider):** `chatStream` simulates the answer and delivers it to the bubble in ~24-character
+  timed word chunks; the bubble renders chunks incrementally with a blinking caret, a "streaming..." label and an
+  accent border, then finalizes via the existing answer display. Zero real LLM calls.
+- **OpenRouter preset (real mode):** browser-side streaming from a static origin **works** — verified via public
+  preflight evidence (`Access-Control-Allow-Origin: *` on the preflight).
+- **OpenAI preset (real mode):** `api.openai.com` has **tightened CORS for chat completions**, so with this preset
+  the code transparently falls back to the non-streaming `chat()` path — the full answer still renders, just in one
+  piece. The fallback triggers on any refusal: CORS, non-OK status, missing `ReadableStream`, or an empty stream.
+
+**Workaround if your provider blocks CORS (static-server + same-origin reverse proxy):**
+
+> serve `prototype/index.html` from any static server and front the LLM endpoint with a local same-origin proxy,
+> e.g. `npx http-server` for the app plus a tiny reverse proxy mapping `/llm` -> `https://openrouter.ai/api/v1`
+> (Node http/express, or Caddy: `:8080 { reverse_proxy /llm/* openrouter.ai:443 }`) and set **Custom provider**
+> Base URL to `http://localhost:PORT/llm` — key stays browser-side, no app code change (the seam is the only fetch site).
+
+### The backend swap (Option C from the idea note)
+
+To replace the client-side mock/REST providers with a real backend that holds the API key:
+
+1. **Implement the same interface server-side** — expose these endpoints (the interface `LLMService` already speaks):
+   - `POST /api/llm/chat` — server holds the key, forwards to the model, returns the text (optionally streams SSE).
+   - `POST /api/llm/chat/stream` — optional streaming variant (SSE chunks); or add streaming to `/chat`.
+   - `POST /api/llm/propose` — adaptive proposal generation (maps `proposeChanges`).
+   - `POST /api/llm/revise` — proposal revision after Discuss (maps `reviseProposal`).
+   - `POST /api/llm/ping` — connectivity test.
+2. **Files touched: exactly one** — `index.html`, inside the `LLMService` module (the only fetch site in the app).
+   The internals of `chat`/`chatStream`/`proposeChanges`/`reviseProposal`/`applyChange`/`ping` become thin
+   `fetch('/api/llm/…', …)` calls. **Zero UI changes** — everything above the seam (bubble, adaptive cycle,
+   discuss thread, history) is untouched.
+3. **Keys:** the API key never touches the page — remove it from Settings/localStorage on the client side; the
+   server injects it. `configure()` keeps accepting the demo/provider fields; the key field becomes inert.
+4. **Same swap point** can take over persistence (workspace/history/adaptive) when multi-device sync is needed.
 
 ## Adaptive op types & cost per cycle
 
