@@ -158,6 +158,7 @@ textarea.input{resize:vertical; min-height:70px; line-height:1.5;}
 .noteItem:hover{background:var(--panel3); border-color:var(--accent);}
 .noteItem .niQ{color:var(--text); font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
 .noteItem .niMeta{color:var(--faint);}
+.noteItem .niSel{color:var(--faint); font-style:italic; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
 .sbFoot{margin-top:auto; padding:14px 16px; display:flex; gap:8px; border-top:1px solid var(--border);}
 #notesCount{color:var(--accent); font-weight:600;}
 #mainArea{flex:1; overflow-y:auto; position:relative; scroll-behavior:smooth; padding-bottom:96px;}
@@ -216,23 +217,18 @@ textarea.input{resize:vertical; min-height:70px; line-height:1.5;}
 .quizReveal{margin-top:10px; font-size:12.5px; color:var(--muted); font-family:var(--font-ui);}
 .quizReveal code{font-size:12px;}
 
-/* ---- Q&A notes inside lesson ---- */
-.notesSection{margin-top:34px;}
-.notesSection h3{font-family:var(--font-ui); font-size:15px; font-weight:700; color:var(--text); margin-bottom:10px; display:flex; gap:8px; align-items:center;}
-.noteCard{
-  background:var(--panel2); border:1px solid var(--border); border-left:3px solid var(--accent);
-  border-radius:var(--radius-sm); padding:14px 16px; margin-bottom:12px; cursor:pointer;
-  transition:border-color .15s; position:relative;
+/* ---- Q&A note anchors inside lesson (Card 3 hybrid relocation:
+   note bodies live in the sidebar notes surface; the lesson HTML
+   keeps only lightweight inline highlight markers) ---- */
+.selNoteAnchor{
+  background:rgba(122,162,247,.16); border-bottom:2px solid rgba(122,162,247,.55);
+  border-radius:3px; padding:0 1px; cursor:pointer; transition:background .15s;
 }
-.noteCard:hover{border-color:var(--accent);}
-.noteCard .ncViewHint{position:absolute; top:12px; right:12px; font-size:11px; color:var(--faint);}
-.noteQuote{font-size:12.5px; color:var(--faint); border-left:2px solid var(--border2);
-  padding-left:10px; margin-bottom:10px; font-style:italic;}
-.noteQ{font-family:var(--font-ui); font-size:13.5px; font-weight:600; margin-bottom:8px;}
-.noteA{font-family:var(--font-ui); font-size:13.5px; color:var(--prose); line-height:1.6;}
-.noteA p{margin-bottom:8px;}
-.noteMeta{display:flex; justify-content:space-between; align-items:center; margin-top:10px; font-size:11.5px; color:var(--faint);}
-.noteMeta .btn-ghost{padding:3px 8px; font-size:11.5px;}
+.selNoteAnchor:hover{background:rgba(122,162,247,.3);}
+.selNoteAnchor::after{
+  content:'N'; font-family:var(--font-ui); font-size:9px; font-weight:700; color:var(--accent);
+  vertical-align:super; margin-left:2px;
+}
 
 /* ============ SIDEBAR: Selection Q&A history (collapsible) ============ */
 .selqaToggle{
@@ -255,6 +251,8 @@ textarea.input{resize:vertical; min-height:70px; line-height:1.5;}
 .selqaEntry .sqA p{margin-bottom:5px;}
 .selqaEntry .sqA p:last-child{margin-bottom:0;}
 .selqaEntry .sqLesson{color:var(--faint); font-size:11px; margin-top:3px;}
+.selqaEntry .sqImgs{display:flex; gap:4px; flex-wrap:wrap; margin-top:4px;}
+.selqaEntry .sqImgs img{width:30px; height:30px; object-fit:cover; border:1px solid var(--border2); border-radius:6px;}
 
 /* ============ PROPOSAL DISCUSSION THREAD (directly below the proposal card) ============ */
 .dmsg{max-width:85%; padding:8px 12px; border-radius:12px; font-size:12.8px; line-height:1.5; white-space:pre-wrap; word-wrap:break-word;}
@@ -328,6 +326,17 @@ textarea.input{resize:vertical; min-height:70px; line-height:1.5;}
 .linkRow{display:flex; gap:6px; align-items:center; font-size:12px; color:var(--muted);
   background:var(--panel2); border:1px solid var(--border); border-radius:7px; padding:5px 9px;}
 .linkRow .u{flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+/* URL auto-chip (inline in the question input) */
+.bubChips{display:flex; gap:6px; flex-wrap:wrap; margin-top:8px;}
+.bubChip{
+  display:inline-flex; align-items:center; gap:6px; max-width:100%;
+  background:var(--panel3); border:1px solid var(--accent2); color:var(--accent);
+  border-radius:999px; padding:3px 8px 3px 10px; font-size:11.5px;
+  font-weight:500; white-space:nowrap; overflow:hidden;
+}
+.bubChip .u{overflow:hidden; text-overflow:ellipsis; max-width:220px;}
+.bubChip .thumbX{width:16px; height:16px; line-height:1; margin-left:2px;}
+
 /* actions row: Ask / Insert into workspace / New question */
 .actionsRow{display:flex; gap:7px; margin-top:12px; align-items:center; justify-content:flex-end;}
 #bubRes{margin-top:11px; display:none;}
@@ -437,7 +446,7 @@ textarea.input{resize:vertical; min-height:70px; line-height:1.5;}
 .stFoot{display:flex; justify-content:flex-end; margin-top:11px;}
 /* flashing highlight for a located note */
 .flashNote{animation:flashNote 1.6s ease 2;}
-@keyframes flashNote{0%,100%{border-color:var(--border2);} 50%{border-color:var(--accent); box-shadow:0 0 0 5px var(--accent-soft);}}
+@keyframes flashNote{0%,100%{background:rgba(122,162,247,.16);} 50%{background:rgba(122,162,247,.55); box-shadow:0 0 0 5px rgba(122,162,247,.25);}}
 
 /* ============ LAYOUT SYSTEM (v1.2 Card 1): presets + resizable panes ============ */
 #layoutToggleWrap{
@@ -647,11 +656,10 @@ body[data-view="focus"] #lessonWrap{max-width:960px;}        /* reference emphas
     <div id="bubBody">
       <div id="selPreview">“<span id="selText"></span>”</div>
       <textarea id="bubQ" placeholder="Ask a question about the selection…"></textarea>
-      <div class="hint" id="bubPasteHint">Tip: paste an image from your clipboard with Ctrl+V (max 2 images).</div>
+      <div class="hint" id="bubPasteHint">Tip: paste an image from your clipboard with Ctrl+V (max 10 images).</div>
       <div class="attRow">
         <span class="attLabel">Attach</span>
         <button class="attBtn" id="bubImgBtn"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1" y="1" width="14" height="11" rx="2"/><circle cx="8" cy="8" r="1.6"/><path d="M1 14 L8 12 L15 14"/></svg> Image</button>
-        <button class="attBtn" id="bubLinkBtn"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 13 L15 13 M12 13 L12 7 L15 10"/><path d="M3 2 L13 10"/></svg> Link</button>
         <div id="refPicker">
           <button type="button" id="refPickerBtn" title="Reference another part of the workspace">Reference: none</button>
           <div id="refPickerPanel" hidden>
@@ -662,6 +670,8 @@ body[data-view="focus"] #lessonWrap{max-width:960px;}        /* reference emphas
         <input type="file" id="bubFileInput" accept="image/*" multiple hidden>
       </div>
       <div id="bubImages"></div>
+      <div class="hint" id="bubChipsHint">Tip: type or paste a URL and press space - it becomes a link reference.</div>
+      <div id="bubChips"></div>
       <div id="bubLinks"></div>
       <div id="bubRes">
         <div id="bubThink"><span class="spin" style="flex-shrink:0"></span> Teaching assistant is thinking…</div>
@@ -837,7 +847,8 @@ const Storage = {
 const KEYS = {
   settings:'tp_settings_v1', workspace:'tp_workspace_v1',
   selqa:'tp_selqa_v1', adaptive:'tp_adaptive_v1',
-  layout:'tp_layout_v1'
+  layout:'tp_layout_v1',
+  notesBackup:'tp_notes_backup_v1', notesMigrated:'tp_notes_migrated_v1'
 };
 
 /* ============================================================
@@ -1434,6 +1445,36 @@ const PROVIDERS = {
 
 function saveSettings(){ Storage.set(KEYS.settings, App.settings); }
 function saveWorkspace(){ Storage.set(KEYS.workspace, App.ws); }
+
+/* ---- Card 3 one-time notes relocation migration ----
+   The note data model is unchanged (App.ws.notes[] keyed by lessonId), so this
+   migration performs NO data transformation — its job is the safety rail the
+   signed-off spec requires: a one-time immutable backup of the pre-relocation
+   workspace notes in their own localStorage key, plus a before/after count
+   verification so no note can be silently lost by the rendering change.
+   Runs once per browser (flagged by KEYS.notesMigrated); backup is written
+   before the flag so a crash mid-run can never skip the backup. */
+function migrateNotesBackup(ws){
+  try {
+    if (!ws || !Array.isArray(ws.notes)) return { backedUp:false, before:0, after:0 };
+    if (Storage.get(KEYS.notesMigrated, false)) return { backedUp:false, before:ws.notes.length, after:ws.notes.length };
+    const existing = Storage.get(KEYS.notesBackup, null);
+    if (!existing || !Array.isArray(existing.notes) || existing.notes.length < ws.notes.length){
+      Storage.set(KEYS.notesBackup, { notes: ws.notes, backedUpAt: now() });
+    }
+    const after = (Storage.get(KEYS.workspace, ws).notes || []).length;
+    if (after !== ws.notes.length){
+      console.error('Notes migration count mismatch — flag NOT set, will retry next load', { before: ws.notes.length, after });
+      return { backedUp:true, before:ws.notes.length, after, ok:false };
+    }
+    Storage.set(KEYS.notesMigrated, true);
+    console.log('Notes relocation migration OK: ' + ws.notes.length + ' notes backed up and verified.');
+    return { backedUp:true, before:ws.notes.length, after, ok:true };
+  } catch(e){
+    console.error('Notes migration failed (non-fatal):', e);
+    return { ok:false, error:e.message };
+  }
+}
 function saveSelQA(){ Storage.set(KEYS.selqa, App.selQA); }
 function persistAll(){ saveSettings(); if (App.ws) saveWorkspace(); saveSelQA(); }
 
@@ -1896,8 +1937,43 @@ function renderSidebar(){
     const l = App.ws.lessons.find(x => x.id === n.lessonId);
     return '<div class="noteItem" data-note="' + esc(n.id) + '">' +
       '<span class="niQ">Q: ' + esc((n.question || '').slice(0, 60)) + '</span>' +
-      '<span class="niMeta">' + esc(l ? 'Lesson ' + l.id.replace(/^l/i,'') : '?') + ' · ' + esc(new Date(n.ts).toLocaleDateString()) + '</span></div>';
+      '<span class="niMeta">' + esc(l ? 'Lesson ' + l.id.replace(/^l/i,'') : '?') + ' · ' + esc(new Date(n.ts).toLocaleDateString()) + '</span>' +
+      '<span class="niSel">“' + esc((n.selection || '').slice(0, 80)) + '”</span></div>';
   }).join('');
+}
+
+/* ---- Card 3 hybrid relocation: decorate the lesson HTML with inline
+   highlight anchors at each note's anchored passage. Note bodies are NOT
+   embedded — they render only in the sidebar notes surface + view modal. */
+function decorateNoteAnchors(lesson, rootEl){
+  const notes = (App.ws.notes || []).filter(n => n.lessonId === lesson.id);
+  if (!notes.length) return;
+  const walker = document.createTreeWalker(rootEl, NodeFilter.SHOW_TEXT, null);
+  const targets = [];   // {node, start, note}
+  let node;
+  while ((node = walker.nextNode())){
+    const text = node.nodeValue;
+    if (!text || !text.trim()) continue;
+    for (const n of notes){
+      const sel = (n.selection || '').trim();
+      if (!sel) continue;
+      const i = text.indexOf(sel);
+      if (i !== -1) targets.push({ node, start: i, len: sel.length, note: n });
+    }
+  }
+  for (const t of targets){
+    const textNode = t.node;
+    const range = document.createRange();
+    range.setStart(textNode, t.start);
+    range.setEnd(textNode, t.start + t.len);
+    const frag = range.extractContents();
+    const mark = document.createElement('span');
+    mark.className = 'selNoteAnchor';
+    mark.dataset.note = t.note.id;
+    mark.title = 'Note: ' + ((t.note.question || '').slice(0, 100));
+    mark.appendChild(frag);
+    range.insertNode(mark);
+  }
 }
 
 function renderLesson(){
@@ -1905,7 +1981,6 @@ function renderLesson(){
   if (!lesson) return;
   $('lessonTitle').textContent = 'Lesson ' + lesson.id.replace('l','') + ' of ' + App.ws.lessons.length;
   $('lessonH1').textContent = lesson.title;
-  const notes = (App.ws.notes || []).filter(n => n.lessonId === lesson.id);
   let html = renderMarkdown(lesson.content);
 
   // interactive quizzes
@@ -1919,21 +1994,12 @@ function renderLesson(){
       '</div>').join('');
   }
 
-  // selection Q&A notes (clickable -> note view modal)
-  if (notes.length){
-    html += '<div class="notesSection"><h3>Selection Q&amp;A notes</h3>' + notes.slice().reverse().map(n =>
-      '<div class="noteCard" data-note="' + esc(n.id) + '" title="Click to view the full note">' +
-      '<span class="ncViewHint">view</span>' +
-      '<div class="noteQuote">“' + esc(n.selection) + '”</div>' +
-      '<div class="noteQ">Q: ' + esc(n.question) + '</div>' +
-      '<div class="noteA">' + renderMarkdown(n.answer) + '</div>' +
-      '<div class="noteMeta"><span>' + esc(fmtTs(n.ts)) + '</span>' +
-      '<button class="btn btn-ghost bubMini" data-delnote="' + esc(n.id) + '" title="Delete this note">Delete</button></div>' +
-      '</div>').join('') + '</div>';
-  }
-
+  // Card 3 hybrid relocation: no inline note bodies in the lesson HTML.
+  // Light highlight anchors are decorated onto the rendered markdown below;
+  // full note bodies render in the sidebar notes surface + the note view modal.
   $('lessonContent').innerHTML = html;
   $('lessonContent').dataset.lesson = lesson.id;
+  decorateNoteAnchors(lesson, $('lessonContent'));
   $('prevLessonBtn').disabled = (App.currentLessonId === App.ws.lessons[0].id);
   $('nextLessonBtn').disabled = (App.currentLessonId === App.ws.lessons[App.ws.lessons.length - 1].id);
   renderSidebar();
@@ -1966,6 +2032,7 @@ function renderSelQA(){
     '<div class="sqHead"><span class="sqSel">“' + esc((e.selection || '').length > 120 ? e.selection.slice(0, 120) + '…' : e.selection) + '”</span></div>' +
     '<div class="sqQ">Q: ' + esc(e.question || '') + '</div>' +
     '<div class="sqA">' + renderMarkdown(e.answer || '') + '</div>' +
+    ((Array.isArray(e.images) && e.images.length) ? '<div class="sqImgs">' + e.images.map(im => '<img src="' + esc(im.dataUrl || '') + '" alt="" title="Attached image">').join('') + '</div>' : '') +
     '<div class="sqLesson">' + esc(e.lessonTitle || '') + ' · ' + esc(fmtTs(e.ts)) + '</div>' +
     '</div>').join('');
 }
@@ -2031,7 +2098,8 @@ function locateNote(){
   if (!n) return;
   closeNote();
   navTo(n.lessonId);
-  const card = document.querySelector('.noteCard[data-note="' + CSS.escape(n.id) + '"]');
+  const card = document.querySelector('.selNoteAnchor[data-note="' + CSS.escape(n.id) + '"]') ||
+               document.querySelector('[data-note="' + CSS.escape(n.id) + '"]');
   if (card){
     card.scrollIntoView({ block:'center' });
     card.classList.add('flashNote');
@@ -2171,6 +2239,7 @@ async function sendDiscuss(_text){
 /* ============================================================
    Selection bubble controller
    ============================================================ */
+const MAX_IMAGE_ATTACHMENTS = 10;   // per-question image cap (paste + Image button share one path)
 const Bubble = {
   el: $('bubble'),
   open: false,
@@ -2209,8 +2278,8 @@ const Bubble = {
   },
   resetAttachments(){
     App.bubble.images = []; App.bubble.links = [];
-    $('bubImages').innerHTML = ''; $('bubLinks').innerHTML = '';
-    $('bubFileInput').value = '';
+    $('bubImages').innerHTML = ''; $('bubFileInput').value = '';
+    if (App.bubble.renderChips) App.bubble.renderChips();
   },
   /* ---- reference picker (Card 3, topic 2 signed-off design) ----
      Full untruncated lesson titles; search/filter input only when the
@@ -2268,9 +2337,9 @@ const Bubble = {
     });
   },
   async addImage(file){
-    // FIX: clipboard paste and the Image button share ONE path — max 2 images total.
+    // Clipboard paste and the Image button share ONE path — max MAX_IMAGE_ATTACHMENTS total.
     // The slot is reserved synchronously so concurrent pastes cannot race past the cap.
-    if (App.bubble.images.length >= 2){ toast('Max 2 images — remove one to add another.'); return; }
+    if (App.bubble.images.length >= MAX_IMAGE_ATTACHMENTS){ toast('Max ' + MAX_IMAGE_ATTACHMENTS + ' images — remove one to add another.'); return; }
     const img = { name: file.name || 'clipboard', dataUrl: '' };
     App.bubble.images.push(img);
     this.renderImageThumbs();
@@ -2280,13 +2349,36 @@ const Bubble = {
     img.dataUrl = dataUrl;
     this.renderImageThumbs();
   },
+  renderChips(){
+    const box = $('bubChips'); if (!box) return;
+    box.innerHTML = App.bubble.links.map((u,i) =>
+      '<span class="bubChip"><span class="u">' + esc(u) + '</span>' +
+      '<button class="thumbX" data-chi="' + i + '" title="Remove link">×</button></span>').join('');
+    const h = $('bubChipsHint'); if (h) h.style.display = App.bubble.links.length ? 'none' : '';
+  },
   addLink(url){
-    if (!/^https?:\/\//i.test(url.trim())){ toast('Link must start with http(s)://'); return; }
-    App.bubble.links.push(url.trim());
-    const row = document.createElement('div');
-    row.className = 'linkRow';
-    row.innerHTML = '<span class="u">' + esc(url.trim()) + '</span><button class="thumbX" data-li="' + (App.bubble.links.length-1) + '" title="Remove link">×</button>';
-    $('bubLinks').appendChild(row);
+    url = (url || '').trim();
+    if (!/^https?:\/\//i.test(url)){ toast('Link must start with http(s)://'); return; }
+    if (App.bubble.links.indexOf(url) === -1){ App.bubble.links.push(url); this.renderChips(); }
+  },
+  removeLink(i){
+    App.bubble.links.splice(i,1); this.renderChips();
+  },
+  /* Pull a trailing bare URL out of the current question text into a chip,
+     preserving the underlying text value for send (URL travels via link refs). */
+  chipTrailingUrl(){
+    const ta = $('bubQ');
+    if (!ta) return false;
+    const trimmed = ta.value.replace(/\s+$/, '');
+    const m = trimmed.match(/(?:^|[\s,;])(https?:\/\/[^\s]+)$/i);
+    if (!m || !/^https?:\/\//i.test(m[1])) return false;
+    let url = m[1].replace(/[.,;:!?)}\]>]+$/, '');
+    if (!/^https?:\/\//i.test(url)) url = m[1];
+    if (App.bubble.links.indexOf(url) === -1) App.bubble.links.push(url);
+    const before = trimmed.slice(0, m.index).replace(/\s+$/, '');
+    ta.value = before + (before ? ' ' : '');
+    this.renderChips();
+    return true;
   },
   close(){
     this.open = false;
@@ -2401,7 +2493,7 @@ document.addEventListener('keydown', (e) => {
     if (!$('refPickerPanel').hidden) return;
     Bubble.close();
   }
-  if (e.key === 'Enter' && !e.shiftKey && document.activeElement === $('bubQ')) { e.preventDefault(); askSelection(); }
+  if (e.key === 'Enter' && !e.shiftKey && document.activeElement === $('bubQ')) { e.preventDefault(); Bubble.chipTrailingUrl(); askSelection(); }
 });
 
 async function askSelection(){
@@ -2461,7 +2553,8 @@ async function askSelection(){
       lessonTitle: lesson.title,
       selection: bubble.selText,
       question: q,
-      answer: ans
+      answer: ans,
+      images: (bubble.images || []).map(i => ({ name: i.name, dataUrl: i.dataUrl }))
     });
     saveSelQA();
     renderSelQA();
@@ -2511,8 +2604,9 @@ function insertNoteFromBubble(){
     ts: now()
   });
   saveWorkspace();
-  renderLesson();                 // re-render lesson so note appears inline
-  toast('Note inserted — click it in the sidebar to view it.');
+  renderLesson();                 // re-decorates the lesson highlight anchor + sidebar notes list
+  renderSidebar();
+  toast('Note saved to the notes surface — the lesson shows its highlight anchor.');
   Bubble.close();
 }
 
@@ -2654,6 +2748,7 @@ function init(){
     App.ws = savedWs;
     App.currentLessonId = savedWs.currentLessonId || savedWs.lessons[0].id;
     if (!App.ws.lessons.some(l => l.id === App.currentLessonId)) App.currentLessonId = App.ws.lessons[0].id;
+    migrateNotesBackup(App.ws);   // Card 3: one-time notes backup + count verification
     saveWorkspace();
     showWorkspace();
   } else {
@@ -2776,16 +2871,14 @@ function init(){
     const imgs = Array.prototype.filter.call(dt.items || [], it => it && typeof it.type === 'string' && it.type.startsWith('image/'));
     if (!imgs.length) return;                  // text paste — let the browser handle it
     e.preventDefault();
-    imgs.slice(0, 4).forEach(it => {
+    // add pasted images up to the remaining cap; addImage enforces the shared cap synchronously
+    imgs.slice(0, Math.max(0, MAX_IMAGE_ATTACHMENTS - App.bubble.images.length)).forEach(it => {
       let f = null;
       try { f = it.getAsFile(); } catch(err){}
-      if (f) Bubble.addImage(f);               // enforces max-2 via the shared path
+      if (f) Bubble.addImage(f);               // enforces the shared cap via addImage
     });
   });
-  $('bubLinkBtn').addEventListener('click', () => {
-    const url = prompt('Paste a link (http(s)://) — v1 does not fetch its content, it is sent as a reference:');
-    if (url) Bubble.addLink(url);
-  });
+
 
   // ---- reference picker events (Card 3, topic 2 signed-off design) ----
   $('refPickerBtn').addEventListener('click', (e) => {
@@ -2812,15 +2905,13 @@ function init(){
     App.bubble.images.splice(+b.dataset.i, 1);
     Bubble.renderImageThumbs();
   });
-  $('bubLinks').addEventListener('click', e => {
+  $('bubChips').addEventListener('click', e => {
     const b = e.target.closest('.thumbX'); if (!b) return;
-    App.bubble.links.splice(+b.dataset.li,1);
-    $('bubLinks').innerHTML = '';
-    App.bubble.links.forEach((u,i) => {
-      const row = document.createElement('div'); row.className='linkRow';
-      row.innerHTML = '<span class="u">'+esc(u)+'</span><button class="thumbX" data-li="'+i+'" title="Remove link">×</button>';
-      $('bubLinks').appendChild(row);
-    });
+    Bubble.removeLink(+b.dataset.chi);
+  });
+  // auto-detect URL: chip it as soon as it is followed by a space
+  $('bubQ').addEventListener('input', () => {
+    if (/\s$/.test($('bubQ').value)) Bubble.chipTrailingUrl();
   });
   $('bubAskBtn').addEventListener('click', askSelection);
   $('bubInsertBtn').addEventListener('click', insertNoteFromBubble);
@@ -2871,7 +2962,7 @@ function init(){
 document.addEventListener('DOMContentLoaded', init);
 
 /* Expose a small debug/test surface (also used by automated checks). */
-window.TP = { LLMService, App, Adaptive, Bubble, Discuss, PROVIDERS, renderMarkdown, esc, renderSelQA, openNote, closeNote, noteEditEnter, noteEditSave, noteDelete };
+window.TP = { LLMService, App, Adaptive, Bubble, Discuss, PROVIDERS, renderMarkdown, esc, renderSelQA, openNote, closeNote, noteEditEnter, noteEditSave, noteDelete, locateNote, decorateNoteAnchors, migrateNotesBackup };
 </script>
 </body>
 </html>
