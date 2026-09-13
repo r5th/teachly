@@ -3,12 +3,16 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Teachly — Self-Building Teaching Workspace</title>
+<title>Teachly — Self-Building Teaching Workspace (v1.1)</title>
 <style>
 /* ============================================================
-   Teachly prototype v1 — single self-contained file.
+   Teachly prototype v1.1 — single self-contained file.
    All CSS/JS inline. No build step, no CDNs, fully offline
    except the user's own LLM endpoint.
+   v1.1: provider/model presets, clipboard image paste, refined
+   bubble layout, viewable notes, Selection Q&A history in dock,
+   and the adaptive-workspace feature (demo simulation).
+   Standing UI rule: NO emojis anywhere — text or inline SVG only.
    ============================================================ */
 :root{
   --bg:#0b0e14; --panel:#12161f; --panel2:#171d2a; --panel3:#1d2434;
@@ -53,7 +57,7 @@ input,textarea,select{font-family:inherit; font-size:14px; color:var(--text);}
 .btn-ghost{background:transparent; border-color:transparent; color:var(--muted);}
 .btn-ghost:hover{background:var(--panel2); color:var(--text);}
 .icon-btn{
-  background:transparent; border:none; color:var(--muted); font-size:15px;
+  background:transparent; border:none; color:var(--muted);
   width:30px; height:30px; border-radius:7px; display:inline-flex; align-items:center; justify-content:center;
 }
 .icon-btn:hover{background:var(--panel3); color:var(--text);}
@@ -63,6 +67,7 @@ input,textarea,select{font-family:inherit; font-size:14px; color:var(--text);}
   background:var(--panel2); border:1px solid var(--border2); color:var(--text);
   padding:9px 12px; border-radius:var(--radius-sm); outline:none; width:100%;
 }
+select.input option{background:var(--panel2); color:var(--text);}
 .input:focus{border-color:var(--accent);}
 textarea.input{resize:vertical; min-height:70px; line-height:1.5;}
 .hint{font-size:12px; color:var(--faint); line-height:1.5;}
@@ -117,12 +122,11 @@ textarea.input{resize:vertical; min-height:70px; line-height:1.5;}
 #setupTitle{font-size:17px; font-weight:600; margin-bottom:4px; display:flex; align-items:center; gap:10px;}
 #setupTopic{color:var(--muted); font-size:13px; margin-bottom:18px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
 .stepRow{display:flex; align-items:center; gap:12px; padding:9px 0; color:var(--muted); font-size:14px;}
-.stepDot{width:18px; height:18px; border-radius:50%; border:2px solid var(--border2); flex-shrink:0;
-  display:flex; align-items:center; justify-content:center; font-size:10px; transition:all .2s;}
+.stepDot{width:18px; height:18px; border-radius:50%; border:2px solid var(--border2); flex-shrink:0;}
 .stepRow.active{color:var(--text);}
 .stepRow.active .stepDot{border-color:var(--accent); box-shadow:0 0 0 4px var(--accent-soft);}
 .stepRow.done{color:var(--good);}
-.stepRow.done .stepDot{border-color:var(--good); background:var(--good); color:#0b0e14;}
+.stepRow.done .stepDot{border-color:var(--good); background:var(--good);}
 .spin{width:16px; height:16px; border:2px solid var(--border2); border-top-color:var(--accent);
   border-radius:50%; animation:spin .8s linear infinite; margin-left:auto;}
 @keyframes spin{to{transform:rotate(360deg);}}
@@ -141,6 +145,14 @@ textarea.input{resize:vertical; min-height:70px; line-height:1.5;}
 .outlineItem:hover{background:var(--panel2); color:var(--text);}
 .outlineItem.current{background:var(--accent-soft); color:var(--text); border-color:rgba(122,162,247,.3);}
 .outlineNum{font-size:11px; font-weight:700; color:var(--accent); flex-shrink:0; width:20px;}
+.noteItem{
+  display:flex; flex-direction:column; gap:2px; padding:7px 10px; margin:5px 0 2px;
+  border-radius:var(--radius-sm); cursor:pointer; background:var(--panel2); border:1px solid var(--border);
+  font-size:12px;
+}
+.noteItem:hover{background:var(--panel3); border-color:var(--accent);}
+.noteItem .niQ{color:var(--text); font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.noteItem .niMeta{color:var(--faint);}
 .sbFoot{margin-top:auto; padding:14px 16px; display:flex; gap:8px; border-top:1px solid var(--border);}
 #notesCount{color:var(--accent); font-weight:600;}
 #mainArea{flex:1; overflow-y:auto; position:relative; scroll-behavior:smooth; padding-bottom:calc(var(--dock-h) + 96px);}
@@ -149,6 +161,13 @@ textarea.input{resize:vertical; min-height:70px; line-height:1.5;}
 #lessonNav{display:flex; justify-content:space-between; margin-top:44px; padding-top:20px; border-top:1px solid var(--border);}
 #lessonTitle{font-size:15px; color:var(--muted); margin-bottom:6px; font-weight:600; text-transform:uppercase; letter-spacing:.06em;}
 #lessonH1{font-size:30px; line-height:1.2; font-weight:700; letter-spacing:-.015em; margin-bottom:26px;}
+.adaptiveSection{
+  border-left:3px solid var(--warn); background:rgba(251,191,36,.05); border-radius:0 var(--radius-sm) var(--radius-sm) 0;
+  padding:16px; margin:26px 0; font-family:var(--font-ui); font-size:14px; color:var(--prose); position:relative;
+}
+.adaptiveSection .asTag{display:inline-block; font-size:10.5px; font-weight:700; letter-spacing:.05em; text-transform:uppercase;
+  color:var(--warn); background:rgba(251,191,36,.12); padding:2px 8px; border-radius:999px; margin-bottom:8px;}
+.adaptiveSection p{margin-bottom:10px;}
 
 /* ---- lesson prose (markdown render) ---- */
 .prose{font-family:var(--font-prose); color:var(--prose); font-size:16px; line-height:1.7;}
@@ -198,14 +217,18 @@ textarea.input{resize:vertical; min-height:70px; line-height:1.5;}
 .notesSection h3{font-family:var(--font-ui); font-size:15px; font-weight:700; color:var(--text); margin-bottom:10px; display:flex; gap:8px; align-items:center;}
 .noteCard{
   background:var(--panel2); border:1px solid var(--border); border-left:3px solid var(--accent);
-  border-radius:var(--radius-sm); padding:14px 16px; margin-bottom:12px;
+  border-radius:var(--radius-sm); padding:14px 16px; margin-bottom:12px; cursor:pointer;
+  transition:border-color .15s; position:relative;
 }
+.noteCard:hover{border-color:var(--accent);}
+.noteCard .ncViewHint{position:absolute; top:12px; right:12px; font-size:11px; color:var(--faint);}
 .noteQuote{font-size:12.5px; color:var(--faint); border-left:2px solid var(--border2);
   padding-left:10px; margin-bottom:10px; font-style:italic;}
 .noteQ{font-family:var(--font-ui); font-size:13.5px; font-weight:600; margin-bottom:8px;}
 .noteA{font-family:var(--font-ui); font-size:13.5px; color:var(--prose); line-height:1.6;}
 .noteA p{margin-bottom:8px;}
 .noteMeta{display:flex; justify-content:space-between; align-items:center; margin-top:10px; font-size:11.5px; color:var(--faint);}
+.noteMeta .btn-ghost{padding:3px 8px; font-size:11.5px;}
 
 /* ============ DOCKED CHAT ============ */
 #dock{
@@ -223,7 +246,31 @@ textarea.input{resize:vertical; min-height:70px; line-height:1.5;}
 #dockPill{width:8px; height:8px; border-radius:50%; background:var(--good); flex-shrink:0;}
 #dockTitle{font-size:13.5px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
 #dockTitle small{color:var(--faint); font-weight:500; margin-left:8px;}
-#dockBody{flex:1; overflow-y:auto; padding:14px 16px 6px; display:none; flex-direction:column; gap:10px;}
+/* Selection Q&A history section (Option C: bubble stays latest-only) */
+#dockSelQA{display:none;}
+#dock.open #dockSelQA{display:block;}
+#selQAToggle{
+  display:flex; align-items:center; gap:8px; padding:6px 14px; cursor:pointer; user-select:none;
+  font-size:12.5px; font-weight:600; color:var(--muted); border-bottom:1px solid var(--border);
+  background:var(--panel3);
+}
+#selQAToggle:hover{color:var(--text);}
+#selQACount{background:var(--accent-soft); color:var(--accent); font-size:11px; font-weight:700;
+  padding:1px 8px; border-radius:999px;}
+#selQAToggle .caret{transition:transform .15s; display:inline-flex; color:var(--faint);}
+#selQAToggle.open .caret{transform:rotate(180deg);}
+#selQAList{display:none; max-height:150px; overflow-y:auto; padding:8px 14px; border-bottom:1px solid var(--border);}
+#selQAToggle.open #selQAList{display:block;}
+.selqaEntry{background:var(--panel2); border:1px solid var(--border2); border-radius:9px; padding:9px 12px; margin-bottom:8px; font-size:12.3px;}
+.selqaEntry .sqSel{color:var(--accent); font-style:italic; font-size:12px;}
+.selqaEntry .sqHead{display:flex; gap:6px; align-items:baseline;}
+.selqaEntry .sqTs{color:var(--faint); font-size:11px; flex-shrink:0;}
+.selqaEntry .sqQ{color:var(--text); font-weight:600; margin:3px 0;}
+.selqaEntry .sqA{color:var(--prose);}
+.selqaEntry .sqA p{margin-bottom:5px;}
+.selqaEntry .sqA p:last-child{margin-bottom:0;}
+.selqaEntry .sqLesson{color:var(--faint); font-size:11px; margin-top:3px;}
+#dockBody{flex:1; overflow-y:auto; padding:8px 16px 6px; display:none; flex-direction:column; gap:10px;}
 #dock.open #dockBody{display:flex;}
 .dmsg{max-width:78%; padding:9px 13px; border-radius:12px; font-size:13.5px; line-height:1.55; white-space:pre-wrap; word-wrap:break-word;}
 .dmsg.user{align-self:flex-end; background:var(--accent-soft); border:1px solid rgba(122,162,247,.35); color:#e8efff;}
@@ -232,6 +279,7 @@ textarea.input{resize:vertical; min-height:70px; line-height:1.5;}
 .dmsg.bot ul,.dmsg.bot ol{padding-left:20px; margin-bottom:8px;}
 .dmsg.bot code{font-family:Consolas,monospace; font-size:12px; background:var(--panel3); padding:1px 5px; border-radius:4px;}
 .dmsg.err{background:rgba(248,113,113,.08); border-color:rgba(248,113,113,.4); color:#fca5a5;}
+.dmsg .dlbl{display:block; font-size:10.5px; color:var(--accent); letter-spacing:.04em; text-transform:uppercase; margin-bottom:4px;}
 #dockInputRow{display:none; align-items:center; gap:8px; padding:10px 14px 14px; border-top:1px solid var(--border);}
 #dock.open #dockInputRow{display:flex;}
 #dockInput{
@@ -251,36 +299,41 @@ textarea.input{resize:vertical; min-height:70px; line-height:1.5;}
 #bubHead{display:flex; align-items:center; gap:8px; padding:11px 14px; border-bottom:1px solid var(--border);
   background:var(--panel2); font-size:13px; font-weight:600;}
 #bubHead .hbub{width:7px; height:7px; border-radius:50%; background:var(--accent); flex-shrink:0;}
-#bubBody{padding:13px 14px 14px; max-height:52vh; overflow-y:auto;}
+#bubBody{padding:12px 14px 14px; max-height:58vh; overflow-y:auto;}
 #selPreview{
   font-size:12.5px; color:var(--muted); background:var(--panel2); border:1px solid var(--border);
   border-left:3px solid var(--accent); border-radius:var(--radius-sm); padding:9px 11px;
-  margin-bottom:11px; max-height:60px; overflow:hidden; font-style:italic;
+  margin-bottom:10px; max-height:60px; overflow:hidden; font-style:italic;
 }
 #selPreview b{color:var(--accent); font-style:normal;}
 #bubQ{
   width:100%; background:var(--panel2); border:1px solid var(--border2); border-radius:10px;
-  padding:9px 12px; outline:none; resize:none; min-height:52px; font-size:13.5px; line-height:1.5;
+  padding:9px 12px; outline:none; resize:none; min-height:50px; font-size:13.5px; line-height:1.5;
 }
 #bubQ:focus{border-color:var(--accent);}
-#bubAttachRow{display:flex; gap:6px; align-items:center; margin-top:9px; flex-wrap:wrap;}
+#bubPasteHint{margin-top:4px; font-size:11.5px; color:var(--faint);}
+/* attachments row: Image / Link / Reference */
+.attRow{display:flex; align-items:center; gap:6px; margin-top:9px; flex-wrap:wrap;}
+.attLabel{font-size:10.5px; color:var(--faint); text-transform:uppercase; letter-spacing:.05em; margin-right:2px;}
 .attBtn{
   background:var(--panel2); border:1px solid var(--border2); color:var(--muted);
   border-radius:8px; padding:5px 10px; font-size:12px; display:inline-flex; gap:5px; align-items:center;
 }
 .attBtn:hover{color:var(--text); border-color:var(--accent);}
+.attBtn svg{width:13px; height:13px; stroke:currentColor; fill:none; stroke-width:1.6;}
+#bubRefSel{background:var(--panel2); border:1px solid var(--border2); color:var(--muted); border-radius:8px;
+  padding:5px 8px; font-size:12px; max-width:170px; outline:none;}
 #bubImages{display:flex; gap:6px; flex-wrap:wrap; margin-top:8px;}
 .thumbWrap{position:relative; width:52px; height:52px; border-radius:8px; overflow:hidden; border:1px solid var(--border2);}
 .thumbWrap img{width:100%; height:100%; object-fit:cover;}
 .thumbX{position:absolute; top:2px; right:2px; width:16px; height:16px; border-radius:50%;
-  background:rgba(0,0,0,.7); color:#fff; font-size:10px; border:none; line-height:1;}
+  background:rgba(0,0,0,.7); color:#fff; font-size:11px; border:none; line-height:1; padding:0;}
 #bubLinks{margin-top:8px; display:flex; flex-direction:column; gap:5px;}
 .linkRow{display:flex; gap:6px; align-items:center; font-size:12px; color:var(--muted);
   background:var(--panel2); border:1px solid var(--border); border-radius:7px; padding:5px 9px;}
 .linkRow .u{flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
-#bubRefRow{margin-top:9px; display:flex; flex-direction:column; gap:5px;}
-#bubAskRow{display:flex; gap:8px; margin-top:11px; align-items:center;}
-#bubAskBtn{flex:1; padding:9px;}
+/* actions row: Ask / Insert into workspace / New question */
+.actionsRow{display:flex; gap:7px; margin-top:12px; align-items:center; justify-content:flex-end;}
 #bubRes{margin-top:11px; display:none;}
 #bubRes.on{display:block;}
 #bubThink{display:flex; gap:9px; align-items:center; color:var(--muted); font-size:13px; padding:6px 0;}
@@ -289,9 +342,73 @@ textarea.input{resize:vertical; min-height:70px; line-height:1.5;}
 #bubAns p{margin-bottom:8px;} #bubAns p:last-child{margin-bottom:0;}
 #bubAns ul,#bubAns ol{padding-left:20px; margin-bottom:8px;}
 #bubAns code{font-family:Consolas,monospace; font-size:12px; background:var(--panel3); padding:1px 5px; border-radius:4px;}
-#bubResBtns{display:flex; gap:7px; margin-top:10px;}
-#bubInsertBtn{flex:1;}
 .bubMini{padding:6px 10px; font-size:12px;}
+
+/* ============ ADAPTIVE: understanding meter (top-right) ============ */
+#meterWrap{
+  position:fixed; top:14px; right:18px; z-index:65; width:118px;
+  background:var(--panel); border:1px solid var(--border2); border-radius:14px; padding:8px 10px;
+  box-shadow:var(--shadow); text-align:center; font-family:var(--font-ui);
+}
+#meterWrap[hidden]{display:none;}
+#meterMeter{position:relative;}
+#meterMeter svg{display:block; margin:0 auto;}
+#meterPctTxt{fill:var(--text); font-size:13.5px; font-weight:700; text-anchor:middle;}
+#meterPct{position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+  font-size:14px; font-weight:700; color:var(--text);}
+.meterLbl{font-size:10px; color:var(--muted); margin-top:3px; line-height:1.25;}
+.meterSub{font-size:9.5px; color:var(--faint); line-height:1.3; margin-top:2px;}
+
+/* ============ ADAPTIVE: change proposal card ============ */
+#proposalCard{
+  position:fixed; top:160px; right:18px; z-index:68; width:350px; max-height:calc(100vh - 200px); overflow-y:auto;
+  background:var(--panel); border:1px solid rgba(251,191,36,.35); border-radius:16px; padding:16px;
+  box-shadow:0 16px 48px rgba(0,0,0,.5); font-family:var(--font-ui);
+}
+#proposalCard[hidden]{display:none;}
+.pcHead{display:flex; align-items:center; gap:8px; font-size:14px; font-weight:700; color:var(--text);}
+.pcDot{width:8px; height:8px; border-radius:50%; background:var(--warn); flex-shrink:0;}
+.pcRevBadge{font-size:10px; font-weight:700; color:var(--warn); background:rgba(251,191,36,.12);
+  padding:1px 7px; border-radius:999px; letter-spacing:.04em; text-transform:uppercase;}
+.pcBody p{font-size:12.5px; color:var(--muted); margin:9px 0 10px;}
+.pcList{list-style:none; padding:0; margin:0 0 4px; display:flex; flex-direction:column; gap:7px;}
+.pcList li{background:var(--panel2); border:1px solid var(--border2); border-radius:9px; padding:8px 10px; font-size:12px;}
+.pcList .cTarget{color:var(--accent); font-weight:700; display:block; font-size:12px;}
+.pcList .cSum{color:var(--prose); display:block; margin-top:2px; line-height:1.45;}
+.pcStatus{font-size:11.5px; color:var(--faint); margin:2px 0 10px;}
+.pcFoot{display:flex; gap:7px; justify-content:flex-end; margin-top:4px;}
+
+/* ============ ADAPTIVE: stepper overlay ============ */
+#stepperOverlay{
+  position:fixed; inset:0; z-index:210; display:none;
+  background:rgba(4,6,10,.55); backdrop-filter:blur(2px);   /* translucent: workspace stays visible beneath */
+}
+#stepperOverlay.show{display:block;}
+#stepperCard{
+  position:fixed; top:96px; right:18px; width:330px; z-index:211;
+  background:var(--panel); border:1px solid var(--accent2); border-radius:16px; padding:16px;
+  box-shadow:0 16px 48px rgba(0,0,0,.55); font-family:var(--font-ui);
+}
+.stHead{display:flex; align-items:center; gap:8px; font-size:14px; font-weight:700;}
+.stSpinner{width:14px; height:14px; border:2px solid var(--border2); border-top-color:var(--accent);
+  border-radius:50%; animation:spin .8s linear infinite; flex-shrink:0;}
+.stSub{font-size:11.5px; color:var(--muted); margin-top:4px;}
+#stepperList{margin-top:11px; display:flex; flex-direction:column; gap:7px; max-height:46vh; overflow-y:auto;}
+.stRow{display:flex; align-items:center; gap:8px; background:var(--panel2); border:1px solid var(--border2);
+  border-radius:9px; padding:7px 10px; font-size:12px;}
+.stIdx{width:18px; height:18px; border-radius:50%; background:var(--accent-soft); color:var(--accent);
+  display:flex; align-items:center; justify-content:center; font-weight:700; font-size:10.5px; flex-shrink:0;}
+.stTarget{flex:1; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:12px;}
+.stChip{font-size:10px; font-weight:700; padding:2px 8px; border-radius:999px; text-transform:uppercase; letter-spacing:.04em; flex-shrink:0;}
+.st-queued{color:var(--faint); border:1px solid var(--border2); background:transparent;}
+.st-pending{color:var(--accent); border:1px solid rgba(122,162,247,.45); background:rgba(122,162,247,.1);}
+.st-changing{color:var(--warn); border:1px solid rgba(251,191,36,.45); background:rgba(251,191,36,.1);}
+.st-completed{color:var(--good); border:1px solid rgba(74,222,128,.4); background:rgba(74,222,128,.1);}
+.st-stopped{color:var(--bad); border:1px solid rgba(248,113,113,.4); background:rgba(248,113,113,.08);}
+.stFoot{display:flex; justify-content:flex-end; margin-top:11px;}
+/* flashing highlight for a located note */
+.flashNote{animation:flashNote 1.6s ease 2;}
+@keyframes flashNote{0%,100%{border-color:var(--border2);} 50%{border-color:var(--accent); box-shadow:0 0 0 5px var(--accent-soft);}}
 
 /* ============ SETTINGS MODAL ============ */
 #modalOverlay{
@@ -303,7 +420,6 @@ textarea.input{resize:vertical; min-height:70px; line-height:1.5;}
   border:1px solid var(--border2); border-radius:18px; padding:24px; box-shadow:var(--shadow);}
 #settingsCard h2{font-size:17px; margin-bottom:4px;}
 #settingsCard .sub{color:var(--muted); font-size:13px; margin-bottom:18px;}
-.presetRow{display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap;}
 .demoToggle{display:flex; align-items:center; gap:10px; background:var(--panel2);
   border:1px solid var(--border2); border-radius:var(--radius-sm); padding:11px 13px; margin-bottom:6px; cursor:pointer;}
 .demoToggle input{accent-color:var(--warn); width:16px; height:16px; cursor:pointer;}
@@ -317,6 +433,26 @@ textarea.input{resize:vertical; min-height:70px; line-height:1.5;}
   padding:4px 8px; border-radius:6px;}
 #settingsFoot{display:flex; gap:8px; justify-content:flex-end; margin-top:18px;}
 
+/* ============ NOTE VIEW MODAL ============ */
+#noteOverlay{
+  position:fixed; inset:0; background:rgba(4,6,10,.66); z-index:155; display:none;
+  align-items:center; justify-content:center; backdrop-filter:blur(3px);
+}
+#noteOverlay.show{display:flex;}
+#noteCard{width:min(560px,92vw); max-height:82vh; overflow-y:auto; background:var(--panel);
+  border:1px solid var(--border2); border-radius:18px; padding:22px; box-shadow:var(--shadow);}
+#noteCard h3{font-size:16px; margin-bottom:2px; display:flex; align-items:center; gap:8px;}
+#nMeta{color:var(--muted); font-size:12px; margin:2px 0 14px;}
+.nSecLabel{font-size:11px; font-weight:700; color:var(--faint); text-transform:uppercase; letter-spacing:.06em; margin-bottom:6px;}
+#nSel{font-size:13px; color:var(--accent); background:rgba(122,162,247,.08); border:1px solid rgba(122,162,247,.3);
+  border-radius:8px; padding:9px 12px; font-style:italic; margin-bottom:10px;}
+#nQ{font-size:13.5px; color:var(--text); background:var(--panel2); border:1px solid var(--border2);
+  border-radius:8px; padding:9px 12px; margin-bottom:10px;}
+#nA{font-size:13.5px; color:var(--prose); line-height:1.6; margin-bottom:4px;}
+#nA p{margin-bottom:8px;} #nA p:last-child{margin-bottom:0;}
+#nA ul,#nA ol{padding-left:20px; margin-bottom:8px;}
+#nFoot{display:flex; gap:8px; justify-content:flex-end; margin-top:16px;}
+
 /* toast */
 #toast{position:fixed; bottom:calc(var(--dock-h) + 16px); right:18px; z-index:300;
   background:var(--panel3); border:1px solid var(--border2); color:var(--text);
@@ -325,11 +461,12 @@ textarea.input{resize:vertical; min-height:70px; line-height:1.5;}
 #toast.show{opacity:1; transform:translateY(0);}
 
 @media (max-width:760px){
-  #sidebar{display:none;}  /* v1: desktop-first; sidebar hidden on narrow screens */
+  #sidebar{display:none;}  /* desktop-first: sidebar hidden on narrow screens */
   #dock{left:0;}
   #lessonWrap{padding:24px 20px 60px;}
   #lessonH1{font-size:24px;}
   #bubble{width:calc(100vw - 20px);}
+  #proposalCard{top:150px; right:8px; width:calc(100vw - 16px);}
 }
 </style>
 </head>
@@ -340,7 +477,7 @@ textarea.input{resize:vertical; min-height:70px; line-height:1.5;}
   <div id="startView" class="view">
     <div id="topLeftChip" class="chip" id="sourceBadgeStart">…</div>
     <div id="sourceBadgeWrap">
-      <button class="btn btn-ghost" id="openSettingsBtnTop" title="Settings">⚙️ Settings</button>
+      <button class="btn btn-ghost" id="openSettingsBtnTop" title="Settings">Settings</button>
     </div>
     <div id="startInner">
       <div id="logoRow">
@@ -349,19 +486,19 @@ textarea.input{resize:vertical; min-height:70px; line-height:1.5;}
       </div>
       <p id="startSub">Tell me what you want to learn. I'll build you a teaching workspace — mission, outline and interactive lessons — and stay docked below to answer follow-ups.</p>
       <div id="startChipRow">
-        <span class="chip" id="demoModeChip" title="Click to toggle">🧪 Demo mode: ON</span>
+        <span class="chip" id="demoModeChip" title="Click to toggle">Demo mode: ON</span>
         <span class="chip" id="modelChip">Model: —</span>
       </div>
       <div id="startChatBox">
         <textarea id="startMsg" placeholder="What should I teach you? e.g. “Introduction to Bayesian statistics”, “How neural networks learn”, “Spanish for travel”…"></textarea>
         <div id="startBar">
-          <button class="btn" id="startSettingsBtn">⚙️</button>
-          <button class="btn btn-primary" id="startSendBtn">Build my workspace →</button>
+          <button class="btn" id="startSettingsBtn">Settings</button>
+          <button class="btn btn-primary" id="startSendBtn">Build my workspace</button>
         </div>
       </div>
       <div id="startHintSteps">
         <div class="stepCard"><span class="stepNum">1</span> Type a topic and send — the chat docks to the bottom while I build the workspace.</div>
-        <div class="stepCard"><span class="stepNum">2</span> Highlight any sentence in a lesson → ask about it, attach images &amp; links.</div>
+        <div class="stepCard"><span class="stepNum">2</span> Highlight any sentence in a lesson → ask about it, attach images &amp; links. The more you ask, the more I learn about you (top-right meter).</div>
         <div class="stepCard"><span class="stepNum">3</span> Ask follow-ups in the docked chat. Everything auto-saves locally.</div>
       </div>
     </div>
@@ -389,11 +526,12 @@ textarea.input{resize:vertical; min-height:70px; line-height:1.5;}
       </div>
       <div class="sbSection">
         <div class="sbLabel">Selection Q&amp;A — <span id="notesCount">0 notes</span></div>
-        <div class="hint" style="margin-top:4px">Select any text in a lesson to ask about it.</div>
+        <div class="hint" style="margin-top:4px">Select any text in a lesson to ask about it. Click a note to view it.</div>
+        <div id="sbNotes"></div>
       </div>
       <div class="sbFoot">
-        <button class="btn" style="flex:1" id="newTopicBtn">＋ New topic</button>
-        <button class="btn" id="openSettingsBtn2" title="Settings">⚙️</button>
+        <button class="btn" style="flex:1" id="newTopicBtn">New topic</button>
+        <button class="btn" id="openSettingsBtn2" title="Settings">Settings</button>
       </div>
     </aside>
     <main id="mainArea">
@@ -402,11 +540,25 @@ textarea.input{resize:vertical; min-height:70px; line-height:1.5;}
         <h1 id="lessonH1"></h1>
         <div id="lessonContent" class="prose"></div>
         <div id="lessonNav">
-          <button class="btn" id="prevLessonBtn">← Previous</button>
-          <button class="btn" id="nextLessonBtn">Next →</button>
+          <button class="btn" id="prevLessonBtn">Previous</button>
+          <button class="btn" id="nextLessonBtn">Next</button>
         </div>
       </div>
     </main>
+  </div>
+
+  <!-- ================= ADAPTIVE: understanding meter ================= -->
+  <div id="meterWrap" hidden>
+    <div id="meterMeter">
+      <svg id="meterSvg" viewBox="0 0 60 60" width="60" height="60" aria-hidden="true">
+        <circle cx="30" cy="30" r="24" fill="none" stroke="#2e3850" stroke-width="5"/>
+        <circle id="meterArc" cx="30" cy="30" r="24" fill="none" stroke="#7aa2f7" stroke-width="5"
+          stroke-linecap="round" stroke-dasharray="0 150.8" transform="rotate(-90 30 30)"/>
+        <text id="meterPctTxt" x="30" y="35" text-anchor="middle" font-size="13.5" font-weight="700" fill="#e6e9f1">0%</text>
+      </svg>
+    </div>
+    <div class="meterLbl">Learning more about you</div>
+    <div class="meterSub" id="meterSub"></div>
   </div>
 
   <!-- ================= DOCKED CHAT ================= -->
@@ -415,7 +567,17 @@ textarea.input{resize:vertical; min-height:70px; line-height:1.5;}
       <span id="dockPill"></span>
       <span id="dockTitle">Teaching Assistant<small id="dockModel"></small></span>
       <span style="flex:1"></span>
-      <button class="icon-btn" id="dockToggle" title="Expand / collapse">▴</button>
+      <button class="icon-btn" id="dockToggle" title="Expand / collapse"></button>
+    </div>
+    <div id="dockSelQA">
+      <div id="selQAToggle" title="Toggle Selection Q&amp;A history">
+        <span class="caret" id="selQACaret"><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M5 2 L9 6 L1 6 Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg></span>
+        <span>Selection Q&amp;A</span>
+        <span id="selQACount" hidden>0</span>
+        <span style="flex:1"></span>
+        <span class="hint" style="font-size:10.5px">full history — nothing scrolls away</span>
+      </div>
+      <div id="selQAList"></div>
     </div>
     <div id="dockBody"></div>
     <div id="dockInputRow">
@@ -428,29 +590,73 @@ textarea.input{resize:vertical; min-height:70px; line-height:1.5;}
   <div id="bubble" hidden>
     <div id="bubHead"><span class="hbub"></span> Ask about selection
       <span style="flex:1"></span>
-      <button class="icon-btn" id="bubClose" title="Close (Esc)">✕</button>
+      <button class="icon-btn" id="bubClose" title="Close (Esc)">×</button>
     </div>
     <div id="bubBody">
       <div id="selPreview">“<span id="selText"></span>”</div>
       <textarea id="bubQ" placeholder="Ask a question about the selection…"></textarea>
-      <div id="bubAttachRow">
-        <button class="attBtn" id="bubImgBtn">🖼 Image</button>
-        <button class="attBtn" id="bubLinkBtn">🔗 Link</button>
-        <select id="bubRefSel" class="input" style="width:auto; padding:5px 8px; font-size:12px"></select>
+      <div class="hint" id="bubPasteHint">Tip: paste an image from your clipboard with Ctrl+V (max 2 images).</div>
+      <div class="attRow">
+        <span class="attLabel">Attach</span>
+        <button class="attBtn" id="bubImgBtn"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1" y="1" width="14" height="11" rx="2"/><circle cx="8" cy="8" r="1.6"/><path d="M1 14 L8 12 L15 14"/></svg> Image</button>
+        <button class="attBtn" id="bubLinkBtn"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 13 L15 13 M12 13 L12 7 L15 10"/><path d="M3 2 L13 10"/></svg> Link</button>
+        <select id="bubRefSel" title="Reference another part of the workspace"></select>
         <input type="file" id="bubFileInput" accept="image/*" multiple hidden>
       </div>
       <div id="bubImages"></div>
       <div id="bubLinks"></div>
-      <div id="bubAskRow">
-        <button class="btn btn-primary" id="bubAskBtn">Ask ✦</button>
+      <div class="actionsRow">
+        <button class="btn btn-primary" id="bubAskBtn">Ask</button>
+        <button class="btn btn-primary bubMini" id="bubInsertBtn" style="display:none">Insert into workspace</button>
+        <button class="btn bubMini" id="bubAgainBtn" style="display:none">New question</button>
       </div>
       <div id="bubRes">
-        <div id="bubThink"><span class="spin"></span> Teaching assistant is thinking…</div>
+        <div id="bubThink"><span class="spin" style="flex-shrink:0"></span> Teaching assistant is thinking…</div>
         <div id="bubAns"></div>
-        <div id="bubResBtns">
-          <button class="btn btn-primary bubMini" id="bubInsertBtn">📥 Insert into workspace</button>
-          <button class="btn bubMini" id="bubAgainBtn">New question</button>
-        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= ADAPTIVE: change proposal card ================= -->
+  <div id="proposalCard" hidden>
+    <div class="pcHead"><span class="pcDot"></span> Change proposal <span class="pcRevBadge" id="pcRevBadge" hidden>Revised</span></div>
+    <div class="pcBody">
+      <p>This is what you are asking for. Apply these changes to the workspace?</p>
+      <ul class="pcList" id="pcList"></ul>
+    </div>
+    <div class="pcStatus" id="pcStatus"></div>
+    <div class="pcFoot">
+      <button class="btn bubMini" id="pcReject">Reject</button>
+      <button class="btn bubMini" id="pcDiscuss">Discuss</button>
+      <button class="btn btn-primary bubMini" id="pcAccept">Accept</button>
+    </div>
+  </div>
+
+  <!-- ================= ADAPTIVE: stepper overlay ================= -->
+  <div id="stepperOverlay">
+    <div id="stepperCard">
+      <div class="stHead"><span class="stSpinner"></span> Applying changes to your workspace</div>
+      <div class="stSub">Watch the workspace update live behind this overlay. Input is paused until it finishes.</div>
+      <div id="stepperList"></div>
+      <div class="stFoot"><button class="btn" id="stepperStop">Stop</button></div>
+    </div>
+  </div>
+
+  <!-- ================= NOTE VIEW MODAL ================= -->
+  <div id="noteOverlay">
+    <div id="noteCard">
+      <h3>Inserted note</h3>
+      <div id="nMeta"></div>
+      <div class="nSecLabel">Source highlight</div>
+      <div id="nSel"></div>
+      <div class="nSecLabel">Your question</div>
+      <div id="nQ"></div>
+      <div class="nSecLabel">Answer</div>
+      <div id="nA"></div>
+      <div id="nFoot">
+        <button class="btn" id="nLocate">Locate in lesson</button>
+        <span style="flex:1"></span>
+        <button class="btn" id="nClose">Close</button>
       </div>
     </div>
   </div>
@@ -458,39 +664,51 @@ textarea.input{resize:vertical; min-height:70px; line-height:1.5;}
   <!-- ================= SETTINGS MODAL ================= -->
   <div id="modalOverlay">
     <div id="settingsCard">
-      <h2>⚙️ LLM Settings</h2>
-      <p class="sub">Your API key stays in this browser's <code>localStorage</code> — it is never sent anywhere except the endpoint below. For production, swap the in-page <code>LLMService</code> for a backend (see README).</p>
-
-      <div class="presetRow">
-        <button class="btn" id="presetOpenAI">OpenAI</button>
-        <button class="btn" id="presetOpenRouter">OpenRouter</button>
-      </div>
-
-      <div class="field" id="fDemo">
-        <label>Mode</label>
-        <div class="demoToggle" id="demoToggleBtn">
-          <input type="checkbox" id="demoChk">
-          <div class="dt"><b>Demo mode (no API key needed)</b><span>Simulates LLM responses locally so you can try the full flow offline. Disable this to use your own model.</span></div>
-        </div>
-      </div>
+      <h2>LLM Settings</h2>
+      <p class="sub">Your API key stays in this browser's <code>localStorage</code> — it is never sent anywhere except the endpoint you configure. For production, swap the in-page <code>LLMService</code> for a backend (see README).</p>
 
       <div class="field">
-        <label>Base URL (OpenAI-compatible)</label>
-        <input class="input" id="baseUrl" placeholder="https://api.openai.com/v1" spellcheck="false">
-        <div class="hint">OpenAI: <code>https://api.openai.com/v1</code> · OpenRouter: <code>https://openrouter.ai/api/v1</code> · any OpenAI-compatible endpoint works.</div>
+        <label>Provider</label>
+        <select class="input" id="providerSel">
+          <option value="openai">OpenAI</option>
+          <option value="openrouter">OpenRouter</option>
+          <option value="custom">Custom (any OpenAI-compatible endpoint)</option>
+        </select>
+        <div class="hint">Pick a preset provider, or choose “Custom” to type your own Base URL.</div>
       </div>
-      <div class="field">
+
+      <div class="field" id="fBaseUrl">
+        <label>Base URL (Custom provider)</label>
+        <input class="input" id="baseUrl" placeholder="https://your-endpoint.example.com/v1" spellcheck="false">
+        <div class="hint">Must be the <code>/v1</code>-style root that accepts <code>POST {base}/chat/completions</code>.</div>
+      </div>
+
+      <div class="field" id="fModel">
         <label>Model</label>
-        <input class="input" id="model" placeholder="gpt-4o-mini" spellcheck="false">
+        <select class="input" id="modelSel"></select>
+        <div class="keyWrap" id="modelCustomWrap" hidden>
+          <input class="input" id="modelCustom" placeholder="e.g. your-custom-model-name" spellcheck="false" autocomplete="off">
+        </div>
+        <div class="hint">Presets per provider, with a “Custom model…” fallback. Vision (image attachments) needs a vision-capable model.</div>
       </div>
+
       <div class="field">
         <label>API key</label>
         <div class="keyWrap">
           <input class="input" id="apiKey" type="password" placeholder="sk-…" spellcheck="false" autocomplete="off">
           <button id="keyToggleBtn">show</button>
         </div>
-        <div class="hint">Supports OpenAI and OpenRouter keys. Vision (image attachments) requires a vision-capable model, e.g. <code>gpt-4o-mini</code>, <code>openrouter/auto</code>.</div>
+        <div class="hint">Supports OpenAI and OpenRouter keys. In Demo mode no key is required.</div>
       </div>
+
+      <div class="field" id="fDemo">
+        <label>Mode</label>
+        <div class="demoToggle" id="demoToggleBtn">
+          <input type="checkbox" id="demoChk">
+          <div class="dt"><b>Demo mode (no API key needed)</b><span>Simulates LLM responses locally so you can try the full flow offline — including the adaptive workspace. Disable this to use your own model.</span></div>
+        </div>
+      </div>
+
       <div id="settingsFoot">
         <button class="btn" id="pingBtn">Test connection</button>
         <span style="flex:1"></span>
@@ -507,49 +725,64 @@ textarea.input{resize:vertical; min-height:70px; line-height:1.5;}
 <script>
 'use strict';
 /* ============================================================
-   Teachly prototype v1 — application logic.
+   Teachly prototype v1.1 — application logic.
    Architecture: UI code ONLY talks to `TP.LLMService`. A future
    backend swap implements the same interface (see README §Backend).
+   v1.1 additions: Selection Q&A history (Option C), adaptive
+   workspace (meter/proposal/stepper, demo-simulated), provider
+   presets, clipboard image paste, viewable notes.
    ============================================================ */
 
 /* ---------------- tiny helpers ---------------- */
 const $  = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const debounce = (fn, ms) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 let toastTimer;
 function toast(msg){ const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 3200); }
 function errToast(msg){ const t = $('errorToast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 6000); }
 const now = () => new Date().toISOString();
+const fmtTs = (iso) => { try { return new Date(iso).toLocaleString(); } catch(e){ return String(iso); } };
+
+/* inline SVG glyphs (no emojis in UI chrome) */
+const SVG_CHEV_DOWN = '<svg width="11" height="11" viewBox="0 0 11 11" aria-hidden="true"><path d="M5.5 3 L10 7.5 L1 7.5 Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>';
+const SVG_CHEV_UP   = '<svg width="11" height="11" viewBox="0 0 11 11" aria-hidden="true"><path d="M5.5 8 L10 3.5 L1 3.5 Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>';
 
 /* ---------------- persistence ---------------- */
 const Storage = {
   get(key, def){ try { const v = localStorage.getItem(key); return v == null ? def : JSON.parse(v); } catch(e){ return def; } },
-  set(key, val){ try { localStorage.setItem(key, JSON.stringify(val)); } catch(e){ console.warn('storage save failed', e); } },
+  set(key, val){ try { localStorage.setItem(key, JSON.stringify(val)); } catch(e){ console.log('storage save failed', e); } },
   del(key){ try { localStorage.removeItem(key); } catch(e){} }
 };
-const KEYS = { settings:'tp_settings_v1', workspace:'tp_workspace_v1', chat:'tp_chat_v1' };
+const KEYS = {
+  settings:'tp_settings_v1', workspace:'tp_workspace_v1', chat:'tp_chat_v1',
+  selqa:'tp_selqa_v1', adaptive:'tp_adaptive_v1'
+};
 
 /* ============================================================
    LLMService — THE SEAM.
-   Every LLM call in this app goes through this module. It has two
+   Every LLM call in this app goes through this module. Two
    implementations behind one interface: 'demo' (local simulation)
    and 'openai' (OpenAI/OpenRouter-compatible REST). A future
    backend (key-holder + persistence server) replaces the internals
    of `chat()` without any UI change.
    ------------------------------------------------------------
    Interface:
-     configure({baseUrl, model, apiKey, demo}) -> void
+     configure({baseUrl, model, apiKey, demo, provider}) -> void
      chat(messages, opts) -> Promise<string>     // text reply
-       messages: [{role:'system'|'user'|'assistant', content: string|array}]
-         content array items: {type:'text',text} | {type:'image_url',image_url:{url}}
-       opts: { json?:boolean — request strict JSON, temperature?:number }
+       messages: [{role:'system'|'user'|'assistant', content:string|array}]
+         content items: {type:'text',text} | {type:'image_url',image_url:{url}}
+       opts: { json?:boolean, temperature?:number }
+     proposeChanges(ctx) -> Promise<{changes:[...], rationale}>   // adaptive
+     reviseProposal(proposal, messages) -> Promise<{...proposal}>
+     ping() -> Promise<string>
      isDemo() -> boolean
      source() -> 'demo' | 'openai'
-     getConfig() -> {baseUrl, model, demo}   (apiKey intentionally omitted)
+     getConfig() -> {baseUrl, model, demo, provider}  (apiKey omitted)
    All fetch/headers/endpoints live here and nowhere else.
    ============================================================ */
 const LLMService = (() => {
-  const DEFAULT_CFG = { baseUrl:'https://api.openai.com/v1', model:'gpt-4o-mini', apiKey:'', demo:true };
+  const DEFAULT_CFG = { baseUrl:'https://api.openai.com/v1', model:'gpt-4o-mini', apiKey:'', demo:true, provider:'openai' };
   let cfg = { ...DEFAULT_CFG };
 
   // demo-side memory: remembers the topic across demo turns so follow-ups feel coherent
@@ -561,11 +794,11 @@ const LLMService = (() => {
   }
   const isDemo   = () => !!cfg.demo;
   const source   = () => (cfg.demo ? 'demo' : 'openai');
-  const getConfig= () => ({ baseUrl: cfg.baseUrl, model: cfg.model, demo: cfg.demo });
+  const getConfig= () => ({ baseUrl: cfg.baseUrl, model: cfg.model, demo: cfg.demo, provider: cfg.provider });
 
   /* ---------------- real (OpenAI-compatible REST) ---------------- */
   async function _realChat(messages, opts = {}){
-    if (!cfg.apiKey)  throw new Error('No API key set. Open ⚙️ Settings → add your key, or enable Demo mode.');
+    if (!cfg.apiKey)  throw new Error('No API key set. Open Settings and add your key, or enable Demo mode.');
     if (!cfg.baseUrl) throw new Error('No base URL set (OpenAI-compatible endpoint).');
     if (!cfg.model)   throw new Error('No model set.');
     const url = cfg.baseUrl.replace(/\/+$/, '') + '/chat/completions';
@@ -608,7 +841,8 @@ const LLMService = (() => {
       if (m.role !== 'user') continue;
       if (typeof m.content === 'string') return m.content;
       if (Array.isArray(m.content)){
-        return m.content.filter(p => p.type === 'text').map(p => p.text).join('\n');
+        const t = m.content.filter(p => p.type === 'text').map(p => p.text).join('\n');
+        if (t) return t;
       }
     }
     return '';
@@ -695,7 +929,7 @@ const LLMService = (() => {
           '1. Re-solve the worked example from lesson 3 *from memory* in two days.\n' +
           '2. Quiz yourself on every lesson\'s quiz — that is retrieval practice.\n' +
           '3. Ask a follow-up in the chat dock for any concept here that still feels fuzzy.\n\n' +
-          '> Learning ' + t + ' is a loop: study → practice → get feedback → repeat. You have everything you need to run that loop now. 🎉'
+          '> Learning ' + t + ' is a loop: study → practice → get feedback → repeat. You have everything you need to run that loop now.'
       }
     ];
     return {
@@ -726,12 +960,65 @@ const LLMService = (() => {
     };
   }
 
+  /* adaptive-workspace demo: build a change proposal from the real Q&A history */
+  function _demoProposal(ctx, revision){
+    const selQA = (ctx && ctx.selQA) || [];
+    const lessons = (ctx && ctx.workspace && ctx.workspace.lessons) || [];
+    const counts = {};
+    selQA.forEach(e => { counts[e.lessonId] = (counts[e.lessonId] || 0) + 1; });
+    const ranked = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+    const rev = revision ? ' Revised: ' + revision : '';
+    const changes = [];
+    if (ranked.length){
+      const [lid1, c1] = ranked[0];
+      const l1 = lessons.find(l => l.id === lid1) || lessons[0];
+      const qs = selQA.filter(e => e.lessonId === lid1).map(e => e.question).filter(Boolean);
+      const unique = [...new Set(qs)].slice(0, 3);
+      changes.push({
+        id:'c1', op:'append', lessonId:lid1,
+        heading:'What you keep asking about',
+        body:'This section was added because you asked about the points below most often in your selection questions (' + c1 + ' question' + (c1 > 1 ? 's' : '') + '):\n\n' +
+             unique.map(q => '- ' + q).join('\n') + '\n\n' + (rev ? rev.trim() : 'Go through each point, then paraphrase the whole lesson out loud.' + '')
+      });
+    }
+    if (ranked.length > 1){
+      const [lid2, c2] = ranked[1];
+      const l2 = lessons.find(l => l.id === lid2) || lessons[0];
+      changes.push({
+        id:'c2', op:'append', lessonId:lid2,
+        heading:'Quick recall check',
+        body:'You asked ' + c2 + ' question' + (c2 > 1 ? 's' : '') + ' against this lesson — revisit them with the retrieval habit from the pitfalls lesson.' + (rev ? ' ' + rev.trim() : '')
+      });
+    }
+    // always include a mission-level change so the stepper has >= 2 steps, even with a single lesson of questions
+    changes.push({
+      id:'c' + (changes.length + 1), op:'mission',
+      body:'Adaptive note: this workspace was tuned after ' + selQA.length + ' selection question' + (selQA.length === 1 ? '' : 's') + ' to better match how you learn.' + (rev ? ' (' + rev.trim() + ')' : '')
+    });
+    return {
+      changes,
+      rationale:'Derived from ' + selQA.length + ' selection Q&A' + (selQA.length === 1 ? '' : 's') + ' in this workspace.'
+    };
+  }
+
+  function _demoRevise(proposal, messages){
+    const last = _lastUserText(messages) || '';
+    const note = 'Adjusted after discussion: “' + (last.replace(/\s+/g, ' ').slice(0, 120) || 'your feedback') + '”.';
+    const revised = { ...proposal, version: (proposal.version || 1) + 1, revised: true };
+    revised.changes = (proposal.changes || []).map(c => ({
+      ...c,
+      body: (c.body || '') + '\n\n' + note
+    }));
+    return revised;
+  }
+
   async function _demoChat(messages, opts = {}){
     const all = JSON.stringify(messages);
     const last = _lastUserText(messages);
     const isCurr  = all.includes('__CURRICULUM__');
     const isSel   = all.includes('__SELECTION__');
     const isPing  = all.includes('__PING__');
+    const isDisc  = all.includes('__PROPOSAL_DISCUSS__');
 
     if (isPing) return 'pong';
 
@@ -739,6 +1026,17 @@ const LLMService = (() => {
       const m = last.match(/TOPIC:\s*(.+)/i);
       demoCtx.topic = (m ? m[1].trim() : '') || 'this topic';
       return JSON.stringify(_demoCurriculumJson(demoCtx.topic));
+    }
+
+    // adaptive-workspace discussion thread (dock)
+    if (isDisc){
+      if (/revise|revision|change|instead|different|update|reword|alter|rework/i.test(last)){
+        return 'Good call — I\'ll revise the proposal to fit that. [__REVISED__]\n\n' +
+               'I\'ve reworked the change list and re-presented it on the proposal card. Take another look and decide.';
+      }
+      return 'Happy to talk it through. Tell me what you\'d like different — too much? too little? wrong scope? ' +
+             'For example, say “revise the second change” and I\'ll update the proposal and re-present it. ' +
+             'You can also Accept or Reject the proposal as-is at any time.';
     }
 
     if (isSel){
@@ -754,8 +1052,8 @@ const LLMService = (() => {
         '- **Why it matters here:** this is the exact spot where beginners either click or stall. Slowing down on this one idea pays off in every later lesson.\n' +
         '- **A way to check yourself:** paraphrase the selection in one sentence, then ask “so what?” twice.\n' +
         '- **Try this:** apply the selection to a concrete example of your own before continuing.\n\n' +
-        (imgs ? '📷 I can see your **' + imgs + ' attached image(s)** — treat them as an example of the concept. Compare it with the text: where does the example fit, and where does it stretch the definition?' + '\n' : '') +
-        (links ? '🔗 I\'ve added your **' + links + ' link(s)** to the reference stack (v1 doesn\'t fetch their content yet — ask me to reason about them and I\'ll consider them as pointers).' + '\n' : '') +
+        (imgs ? '(Received ' + imgs + ' attached image' + (imgs > 1 ? 's' : '') + ' — treat them as an example of the concept. Compare it with the text: where does the example fit, and where does it stretch the definition?)\n' : '') +
+        (links ? '(Added ' + links + ' link' + (links > 1 ? 's' : '') + ' to the reference stack — v1 does not fetch their content yet, but they are kept in context as pointers.)\n' : '') +
         '\nWant me to expand on any branch of this answer, or should we turn it into a note in the workspace?'
       );
     }
@@ -781,16 +1079,57 @@ const LLMService = (() => {
     return _realChat(messages, opts);
   }
 
+  /* adaptive: propose workspace changes (demo-simulated or real LLM call) */
+  async function proposeChanges(ctx){
+    if (cfg.demo) return _demoProposal(ctx, null);
+    const prompt =
+      'You are the adaptive layer of "Teachly". Based on the student\'s selection Q&A history, propose 2-4 concrete ' +
+      'changes to the teaching workspace that match what they keep asking about.\n' +
+      'Return STRICT JSON only, no prose, matching EXACTLY:\n' +
+      '{"changes":[{"id":"c1","op":"append"|"mission","lessonId":"l2 (omit for mission)","heading":"## short heading (omit for mission)","body":"markdown body"}],"rationale":"one sentence"}\n' +
+      'Rules: op "append" adds a section to an existing lesson; op "mission" rewrites/extend the mission text. ' +
+      '[INTENT: __PROPOSAL__]';
+    const content = await _realChat([
+      { role:'system', content: prompt },
+      { role:'user', content: 'WORKSPACE: ' + JSON.stringify(ctx.workspace ? { title:ctx.workspace.title, mission:ctx.workspace.mission, lessons:ctx.workspace.lessons.map(l => ({id:l.id, title:l.title})) } : {}) + '\n\nSELECTION Q&A HISTORY:\n' + JSON.stringify(ctx.selQA || []) }
+    ], { json:true, temperature: 0.6 });
+    let data = null;
+    try { data = JSON.parse(content); } catch(e){
+      const m = content.match(/\{[\s\S]*\}/); if (m){ try { data = JSON.parse(m[0]); } catch(e2){} }
+    }
+    if (!data || !Array.isArray(data.changes) || !data.changes.length) throw new Error('Model did not return a valid change proposal.');
+    return data;
+  }
+
+  /* adaptive: revise a proposal after discussion */
+  async function reviseProposal(proposal, messages){
+    if (cfg.demo) return _demoRevise(proposal, messages || []);
+    const prompt =
+      'You are the adaptive layer of "Teachly". The student discussed the change proposal below and gave feedback. ' +
+      'Return a REVISED proposal as STRICT JSON matching exactly: {"changes":[{"id","op","lessonId","heading","body"}]} — same shape as the input. ' +
+      '[INTENT: __PROPOSAL_REVISE__]';
+    const content = await _realChat([
+      { role:'system', content: prompt },
+      { role:'user', content: 'ORIGINAL PROPOSAL:\n' + JSON.stringify(proposal) + '\n\nDISCUSSION:\n' + JSON.stringify((messages || []).map(m => ({role:m.role, content:String(m.content).slice(0,600)}))) }
+    ], { json:true, temperature: 0.6 });
+    let data = null;
+    try { data = JSON.parse(content); } catch(e){ const m = content.match(/\{[\s\S]*\}/); if (m){ try { data = JSON.parse(m[0]); } catch(e2){} } }
+    if (!data || !Array.isArray(data.changes) || !data.changes.length) throw new Error('Model did not return a revised proposal.');
+    data.version = (proposal.version || 1) + 1;
+    data.revised = true;
+    return data;
+  }
+
   async function ping(){
     if (cfg.demo) return 'Demo mode is active — no real connection needed.';
     const reply = await _realChat([
       { role:'system', content:'Reply with exactly the single word: pong  [INTENT: __PING__]' },
       { role:'user', content:'ping' }
     ], { temperature: 0 });
-    return 'Connected ✓ Model replied: ' + reply.trim();
+    return 'Connected — model replied: ' + reply.trim();
   }
 
-  return { configure, chat, ping, isDemo, source, getConfig };
+  return { configure, chat, proposeChanges, reviseProposal, ping, isDemo, source, getConfig };
 })();
 
 /* ============================================================
@@ -849,21 +1188,227 @@ const App = {
   ws: null,      // { title, mission, outline, lessons, notes[], topic, createdAt }
   currentLessonId: null,
   chat: [],      // [{role, content}] docked chat history
+  selQA: [],     // [{ts, lessonId, lessonTitle, selection, question, answer}] — Option C history (never pruned)
   phrase: '',    // last user message (for dock context)
   bubble: { lessonId:null, images:[], links:[], refs:[] }
+};
+
+const PROVIDERS = {
+  openai:     { baseUrl:'https://api.openai.com/v1', models:['gpt-4o-mini','gpt-4o','gpt-4.1','gpt-4.1-mini','o3-mini'] },
+  openrouter: { baseUrl:'https://openrouter.ai/api/v1', models:['openrouter/auto','openai/gpt-4o-mini','openai/gpt-4o','anthropic/claude-3.5-sonnet','google/gemini-2.0-flash-001'] }
 };
 
 function saveSettings(){ Storage.set(KEYS.settings, App.settings); }
 function saveWorkspace(){ Storage.set(KEYS.workspace, App.ws); }
 const saveChat = debounce(() => Storage.set(KEYS.chat, App.chat), 300);
-function persistAll(){ saveSettings(); if (App.ws) saveWorkspace(); saveChat(); }
+function saveSelQA(){ Storage.set(KEYS.selqa, App.selQA); }
+function persistAll(){ saveSettings(); if (App.ws) saveWorkspace(); saveChat(); saveSelQA(); }
+
+/* ============================================================
+   Adaptive workspace module (demo simulation, LLMService seam).
+   Meter counts ONLY selection-bubble questions (dock follow-ups
+   do not count). Threshold constants live here so weighting can
+   change later (e.g. image questions weigh more, cursive drift
+   over sessions) without touching UI code.
+   ============================================================ */
+const Adaptive = {
+  stepPct: 25,                 // progress per selection-bubble question (threshold after 4 questions)
+  progress: 0,                 // 0..100
+  state: 'collecting',         // collecting | proposal | discussing | applying
+  proposal: null,              // { changes:[{id,op,lessonId,heading,body}], rationale }
+  revision: 0,                 // how many times the current proposal was revised after discussion
+  counters: { asked:0, proposals:0, applied:0, rejected:0, stopped:0 },
+  busy: false,                 // input lock while the stepper overlay runs
+  stop: false,                 // Stop control halts remaining queued changes
+  steps: []                    // [{change, status}] live stepper state
+};
+
+function adaptiveSave(){
+  Storage.set(KEYS.adaptive, {
+    progress: Adaptive.progress,
+    state: Adaptive.state,
+    proposal: Adaptive.proposal,
+    revision: Adaptive.revision,
+    counters: Adaptive.counters
+  });
+}
+function adaptiveLoad(){
+  const s = Storage.get(KEYS.adaptive, null);
+  if (!s) return;
+  Adaptive.progress = Math.min(100, Math.max(0, s.progress || 0));
+  Adaptive.state = s.state || 'collecting';
+  Adaptive.proposal = s.proposal || null;
+  Adaptive.revision = s.revision || 0;
+  if (s.counters) Adaptive.counters = { ...Adaptive.counters, ...s.counters };
+  if (Adaptive.state === 'applying'){             // a refresh mid-apply: keep partially applied changes, resume cleanly
+    Adaptive.state = 'collecting';
+    Adaptive.progress = 0;
+    Adaptive.proposal = null;
+    adaptiveSave();
+  }
+  if (Adaptive.state === 'discussing') Adaptive.state = 'proposal';   // resume the decision
+}
+
+function meterPct(){ return Math.round(Adaptive.progress); }
+function renderMeter(){
+  const wrap = $('meterWrap');
+  if (!App.ws){ wrap.hidden = true; return; }
+  wrap.hidden = false;
+  const pct = meterPct();
+  const C = 150.8;   // 2 * PI * 24
+  const arc = $('meterArc');
+  arc.setAttribute('stroke-dasharray', (pct / 100 * C) + ' ' + C);
+  arc.setAttribute('stroke', pct >= 100 ? '#4ade80' : '#7aa2f7');
+  $('meterPctTxt').textContent = pct + '%';
+  $('meterSub').textContent =
+    Adaptive.state === 'proposal' || Adaptive.state === 'discussing' ? 'A change proposal is ready for your review' :
+    Adaptive.counters.asked > 0 ? 'From ' + Adaptive.counters.asked + ' selection question' + (Adaptive.counters.asked === 1 ? '' : 's') :
+    'Ask selection questions to teach me how you learn';
+}
+
+function adaptiveRecordQuestion(){
+  Adaptive.counters.asked++;
+  Adaptive.progress = Math.min(100, Adaptive.progress + Adaptive.stepPct);
+  renderMeter();
+  adaptiveSave();
+  if (Adaptive.progress >= 100 && Adaptive.state === 'collecting'){
+    thresholdHit();
+  }
+}
+
+async function thresholdHit(){
+  Adaptive.progress = 100;
+  renderMeter();
+  try {
+    const ctx = { topic: App.ws.topic, workspace: { title: App.ws.title, mission: App.ws.mission, lessons: App.ws.lessons }, selQA: App.selQA };
+    Adaptive.proposal = await LLMService.proposeChanges(ctx);
+  } catch(err){
+    toast('Could not draft a proposal: ' + err.message);
+    adaptiveResetMeter();
+    return;
+  }
+  Adaptive.revision = 0;
+  Adaptive.state = 'proposal';
+  renderProposalCard();
+  adaptiveSave();
+  toast('I think I understand what you are asking for — review the change proposal.');
+}
+
+function adaptiveResetMeter(){
+  Adaptive.progress = 0;
+  Adaptive.state = 'collecting';
+  Adaptive.proposal = null;
+  Adaptive.revision = 0;
+  $('proposalCard').hidden = true;
+  renderMeter();
+  adaptiveSave();
+}
+
+function lessonLabel(id){
+  const l = App.ws && App.ws.lessons.find(l => l.id === id);
+  return (l ? 'Lesson ' + id.replace(/^l/i,'') + ' — ' + l.title : 'Mission');
+}
+
+function renderProposalCard(){
+  const card = $('proposalCard');
+  if (!Adaptive.proposal || (Adaptive.state !== 'proposal' && Adaptive.state !== 'discussing')){
+    card.hidden = true;
+    return;
+  }
+  card.hidden = false;
+  $('pcRevBadge').hidden = Adaptive.revision === 0;
+  const list = $('pcList');
+  list.innerHTML = Adaptive.proposal.changes.map(c =>
+    '<li><span class="cTarget">' + esc(c.op === 'mission' ? 'Mission' : lessonLabel(c.lessonId)) + ' — ' + esc(c.heading || 'statement') + '</span>' +
+    '<span class="cSum">' + esc((c.body || '').replace(/\n+/g, ' ').slice(0, 160)) + '</span></li>').join('');
+  const status = $('pcStatus');
+  if (Adaptive.state === 'discussing'){
+    status.textContent = 'In discussion — chat below to refine, or decide now.';
+    $('pcDiscuss').style.display = 'none';
+  } else {
+    status.textContent = Adaptive.revision > 0 ? 'Revised after your discussion.' : 'Generated from your selection questions.';
+    $('pcDiscuss').style.display = '';
+  }
+}
+
+/* ---- stepper overlay ---- */
+function renderStepper(){
+  const list = $('stepperList');
+  list.innerHTML = Adaptive.steps.map((s, i) =>
+    '<div class="stRow"><span class="stIdx">' + (i + 1) + '</span>' +
+    '<span class="stTarget">' + esc(lessonLabel(s.change.lessonId)) + '</span>' +
+    '<span class="stChip st-' + s.status + '">' + s.status + '</span></div>').join('');
+}
+
+function applyChange(ch){
+  if (ch.op === 'mission'){
+    App.ws.mission = (App.ws.mission || '') + '\n\n' + ch.body;
+    return;
+  }
+  const L = App.ws.lessons.find(l => l.id === ch.lessonId) || App.ws.lessons.find(l => l.id === App.currentLessonId);
+  if (!L) return;
+  L.content = L.content + '\n\n### ' + (ch.heading || 'Added section') + '\n\n' + ch.body;
+}
+
+async function runStepper(){
+  Adaptive.busy = true;
+  Adaptive.stop = false;
+  Adaptive.state = 'applying';
+  Adaptive.steps = Adaptive.proposal.changes.map(ch => ({ change: ch, status: 'queued' }));
+  $('stepperOverlay').classList.add('show');
+  renderStepper();
+  renderMeter();
+  adaptiveSave();
+
+  let completed = 0, stopped = 0;
+  for (let i = 0; i < Adaptive.steps.length; i++){
+    const step = Adaptive.steps[i];
+    if (Adaptive.stop){
+      for (let j = i; j < Adaptive.steps.length; j++){ if (Adaptive.steps[j].status === 'queued') Adaptive.steps[j].status = 'stopped'; }
+      stopped = Adaptive.steps.length - i;
+      break;
+    }
+    step.status = 'pending'; renderStepper();
+    await sleep(520);
+    if (Adaptive.stop){ step.status = 'stopped'; stopped = 1; break; }
+    step.status = 'changing'; renderStepper();
+    applyChange(step.change);            // live update beneath the translucent overlay
+    saveWorkspace();
+    if (step.change.op !== 'mission') renderLesson();
+    else { $('sbMission').textContent = App.ws.mission || ''; }
+    renderMeter();
+    await sleep(900);
+    step.status = 'completed'; renderStepper();
+    completed++;
+    Adaptive.counters.applied++;
+    saveWorkspace();
+  }
+
+  await sleep(500);
+  // any step still in flight is marked stopped when the Stop control halts the run
+  Adaptive.steps.forEach(s => { if (s.status !== 'completed' && s.status !== 'stopped') s.status = 'stopped'; });
+  renderStepper();
+  $('stepperOverlay').classList.remove('show');
+  Adaptive.counters.proposals++;
+  Adaptive.busy = false;
+  Adaptive.state = 'collecting';
+  Adaptive.progress = 0;
+  Adaptive.proposal = null;
+  Adaptive.revision = 0;
+  $('proposalCard').hidden = true;
+  renderMeter();
+  adaptiveSave();
+  toast('Applied ' + completed + ' change' + (completed === 1 ? '' : 's') + ' to the workspace.' +
+        (stopped ? ' Stopped with ' + stopped + ' remaining queued.' : '') +
+        ' The meter resets and keeps learning from here.');
+}
 
 /* ============================================================
    UI renderers
    ============================================================ */
 function renderSourceBadges(){
   const demo = LLMService.isDemo();
-  $('demoModeChip').textContent = demo ? '🧪 Demo mode: ON' : '🧪 Demo mode: OFF';
+  $('demoModeChip').textContent = demo ? 'Demo mode: ON' : 'Demo mode: OFF';
   $('demoModeChip').style.borderColor = demo ? 'rgba(251,191,36,.35)' : 'var(--border2)';
   $('demoModeChip').style.color = demo ? 'var(--warn)' : 'var(--muted)';
   const m = App.settings.model || '—';
@@ -877,6 +1422,7 @@ function showStart(){
   $('workspaceView').hidden = true;
   $('setupView').hidden = true;
   $('dock').hidden = true;
+  $('meterWrap').hidden = true;
   renderSourceBadges();
 }
 
@@ -912,8 +1458,14 @@ function renderSidebar(){
     '<div class="outlineItem' + (o.id === cur ? ' current' : '') + '" data-nav="' + esc(o.id) + '">' +
     '<span class="outlineNum">' + esc(o.id.replace('l','')) + '</span>' +
     '<span>' + esc(o.title) + '</span></div>').join('');
-  $('notesCount').textContent = App.ws.notes.filter(n => n.lessonId === cur).length + ' note' +
-    (App.ws.notes.filter(n=>n.lessonId===cur).length === 1 ? '' : 's');
+  const notes = (App.ws.notes || []).slice().sort((a, b) => (b.ts || '').localeCompare(a.ts || ''));
+  $('notesCount').textContent = notes.length + ' note' + (notes.length === 1 ? '' : 's');
+  $('sbNotes').innerHTML = notes.map(n => {
+    const l = App.ws.lessons.find(x => x.id === n.lessonId);
+    return '<div class="noteItem" data-note="' + esc(n.id) + '">' +
+      '<span class="niQ">Q: ' + esc((n.question || '').slice(0, 60)) + '</span>' +
+      '<span class="niMeta">' + esc(l ? 'Lesson ' + l.id.replace(/^l/i,'') : '?') + ' · ' + esc(new Date(n.ts).toLocaleDateString()) + '</span></div>';
+  }).join('');
 }
 
 function renderLesson(){
@@ -928,22 +1480,23 @@ function renderLesson(){
   if (lesson.quiz && lesson.quiz.length){
     html += lesson.quiz.map((qz, qi) =>
       '<div class="quizBlock" data-quiz="' + qi + '">' +
-      '<div class="quizQ">✅ Quiz — ' + esc(qz.q) + '</div>' +
+      '<div class="quizQ">Quiz — ' + esc(qz.q) + '</div>' +
       qz.options.map((opt, oi) =>
         '<button class="quizOpt" data-opt="' + oi + '" data-answer="' + esc(qz.answer) + '">' +
         '<span class="qLtr">' + String.fromCharCode(65 + oi) + '</span><span>' + esc(opt) + '</span></button>').join('') +
       '</div>').join('');
   }
 
-  // selection Q&A notes
+  // selection Q&A notes (clickable -> note view modal)
   if (notes.length){
-    html += '<div class="notesSection"><h3>📥 Selection Q&amp;A notes</h3>' + notes.slice().reverse().map(n =>
-      '<div class="noteCard" data-note="' + esc(n.id) + '">' +
+    html += '<div class="notesSection"><h3>Selection Q&amp;A notes</h3>' + notes.slice().reverse().map(n =>
+      '<div class="noteCard" data-note="' + esc(n.id) + '" title="Click to view the full note">' +
+      '<span class="ncViewHint">view</span>' +
       '<div class="noteQuote">“' + esc(n.selection) + '”</div>' +
       '<div class="noteQ">Q: ' + esc(n.question) + '</div>' +
       '<div class="noteA">' + renderMarkdown(n.answer) + '</div>' +
-      '<div class="noteMeta"><span>' + esc(new Date(n.ts).toLocaleString()) + '</span>' +
-      '<button class="btn btn-ghost bubMini" data-delnote="' + esc(n.id) + '">Delete</button></div>' +
+      '<div class="noteMeta"><span>' + esc(fmtTs(n.ts)) + '</span>' +
+      '<button class="btn btn-ghost bubMini" data-delnote="' + esc(n.id) + '" title="Delete this note">Delete</button></div>' +
       '</div>').join('') + '</div>';
   }
 
@@ -957,6 +1510,7 @@ function renderLesson(){
 function setDockOpen(open){
   $('dock').classList.toggle('open', open);
   $('app').classList.toggle('dock-open', open);
+  $('dockToggle').innerHTML = open ? SVG_CHEV_DOWN : SVG_CHEV_UP;
 }
 function showWorkspace(){
   $('startView').hidden = true;
@@ -966,20 +1520,66 @@ function showWorkspace(){
   setDockOpen(true);
   renderLesson();
   renderChat();
+  renderSelQA();
   renderSourceBadges();
+  renderMeter();
+  renderProposalCard();
 }
 
 function navTo(id){ App.currentLessonId = id; renderLesson(); $('mainArea').scrollTop = 0; }
 
-/* ---- docked chat ---- */
+/* ---- docked chat + Selection Q&A history (Option C) ---- */
 function renderChat(){
   const box = $('dockBody');
   box.innerHTML = App.chat.map(m => {
     if (m.role === 'user') return '<div class="dmsg user">' + esc(m.content) + '</div>';
-    if (m.role === 'error') return '<div class="dmsg err">⚠️ ' + esc(m.content) + '</div>';
+    if (m.role === 'error') return '<div class="dmsg err">Error: ' + esc(m.content) + '</div>';
     return '<div class="dmsg bot">' + renderMarkdown(m.content) + '</div>';
   }).join('');
   box.scrollTop = box.scrollHeight;
+}
+
+function renderSelQA(){
+  const n = App.selQA.length;
+  const count = $('selQACount');
+  count.hidden = n === 0;
+  count.textContent = n;
+  const list = $('selQAList');
+  // newest first; entries are never removed (Option C: nothing scrolls away)
+  list.innerHTML = App.selQA.slice().reverse().map(e =>
+    '<div class="selqaEntry">' +
+    '<div class="sqHead"><span class="sqSel">“' + esc((e.selection || '').length > 120 ? e.selection.slice(0, 120) + '…' : e.selection) + '”</span></div>' +
+    '<div class="sqQ">Q: ' + esc(e.question || '') + '</div>' +
+    '<div class="sqA">' + renderMarkdown(e.answer || '') + '</div>' +
+    '<div class="sqLesson">' + esc(e.lessonTitle || '') + ' · ' + esc(fmtTs(e.ts)) + '</div>' +
+    '</div>').join('');
+}
+
+/* ---- note view modal ---- */
+let currentNoteId = null;
+function openNote(id){
+  const n = (App.ws.notes || []).find(x => x.id === id);
+  if (!n) return;
+  currentNoteId = id;
+  const l = App.ws.lessons.find(x => x.id === n.lessonId);
+  $('nMeta').textContent = (l ? 'Lesson ' + l.id.replace(/^l/i, '') + ' — ' + l.title : 'Workspace note') + ' · ' + fmtTs(n.ts);
+  $('nSel').textContent = '“' + (n.selection || '') + '”';
+  $('nQ').textContent = n.question || '';
+  $('nA').innerHTML = renderMarkdown(n.answer || '');
+  $('noteOverlay').classList.add('show');
+}
+function closeNote(){ $('noteOverlay').classList.remove('show'); currentNoteId = null; }
+function locateNote(){
+  const n = (App.ws.notes || []).find(x => x.id === currentNoteId);
+  if (!n) return;
+  closeNote();
+  navTo(n.lessonId);
+  const card = document.querySelector('.noteCard[data-note="' + CSS.escape(n.id) + '"]');
+  if (card){
+    card.scrollIntoView({ block:'center' });
+    card.classList.add('flashNote');
+    setTimeout(() => card.classList.remove('flashNote'), 3400);
+  }
 }
 
 /* ============================================================
@@ -1008,7 +1608,6 @@ async function generateWorkspace(topic){
   let data = null, raw = content;
   try { data = JSON.parse(raw); }
   catch(e){
-    // tolerate providers that wrapped the JSON in prose or fences
     const m = raw.match(/\{[\s\S]*\}/);
     if (m){ try { data = JSON.parse(m[0]); } catch(e2){} }
   }
@@ -1074,6 +1673,55 @@ function followupMessages(text){
 }
 
 /* ============================================================
+   Adaptive: proposal discussion thread (via LLMService)
+   ============================================================ */
+const PROPOSAL_DISCUSS_SYSTEM =
+  'You are the adaptive layer of "Teachly". The student is discussing a change proposal for their workspace. ' +
+  'Answer conversationally and helpfully about the proposal. If the student asks you to revise or alter the proposal ' +
+  '(wording, scope, adding or removing changes), say you will revise it, summarize what will change, and include ' +
+  'EXACTLY the single line [__REVISED__] at the very end of your reply. If they only ask questions, reply normally ' +
+  'without that line.\n\n[INTENT: __PROPOSAL_DISCUSS__]';
+
+async function sendDiscuss(_text){
+  const input = $('dockInput');
+  const text = (_text ?? input.value).trim();
+  if (!text) return;
+  input.value = '';
+  App.chat.push({ role:'user', content:text });
+  renderChat(); saveChat();
+  const proposal = Adaptive.proposal;
+  const summary = proposal ? proposal.changes.map(c =>
+    (c.op === 'mission' ? '[mission change] ' : '[lesson ' + c.lessonId + '] ') +
+    (c.heading || '') + ': ' + (c.body || '').replace(/\n+/g, ' ').slice(0, 140)).join('\n') : '';
+  let ans;
+  try {
+    ans = await LLMService.chat([
+      { role:'system', content: PROPOSAL_DISCUSS_SYSTEM },
+      { role:'user', content: 'WORKSPACE: ' + (App.ws ? App.ws.title : '') + '\nPROPOSAL:\n' + summary + '\n\nSTUDENT: ' + text }
+    ], { temperature: 0.6 });
+  } catch(err){
+    App.chat.push({ role:'error', content: err.message });
+    renderChat(); saveChat();
+    return;
+  }
+  const revised = ans.includes('__REVISED__');
+  const clean = ans.replace(/\[__REVISED__\]/g, '').trim();
+  App.chat.push({ role:'assistant', content: clean });
+  if (revised){
+    try {
+      Adaptive.proposal = await LLMService.reviseProposal(proposal, App.chat.slice(-8));
+      Adaptive.revision++;
+      Adaptive.state = 'proposal';
+      renderProposalCard();
+      toast('Proposal revised after discussion — review and decide.');
+    } catch(err){
+      App.chat.push({ role:'assistant', content: 'I could not revise the proposal right now: ' + err.message });
+    }
+  }
+  renderChat(); saveChat(); adaptiveSave();
+}
+
+/* ============================================================
    Selection bubble controller
    ============================================================ */
 const Bubble = {
@@ -1091,7 +1739,7 @@ const Bubble = {
     $('bubAns').innerHTML = '';
     $('bubRes').classList.remove('on');
     $('bubAskBtn').disabled = false;
-    $('bubAskBtn').textContent = 'Ask ✦';
+    $('bubAskBtn').textContent = 'Ask';
     $('bubAskBtn').style.display = '';
     $('bubInsertBtn').style.display = 'none';
     $('bubAgainBtn').style.display = 'none';
@@ -1099,9 +1747,8 @@ const Bubble = {
 
     // reference selector
     const sel = $('bubRefSel');
-    sel.innerHTML = '<option value="">📖 Reference: none</option>' +
-      '<option value="' + esc(lessonId) + '">Current lesson</option>' +
-      App.ws.lessons.map(l => '<option value="' + esc(l.id) + '">' + esc(l.title) + '</option>').join('');
+    sel.innerHTML = '<option value="">Reference: none</option>' +
+      App.ws.lessons.map(l => '<option value="' + esc(l.id) + '">' + esc('Lesson ' + l.id.replace(/^l/i, '') + ': ' + l.title) + '</option>').join('');
 
     this.position(x, y);
     $('bubQ').focus();
@@ -1110,6 +1757,36 @@ const Bubble = {
     App.bubble.images = []; App.bubble.links = [];
     $('bubImages').innerHTML = ''; $('bubLinks').innerHTML = '';
     $('bubFileInput').value = '';
+  },
+  renderImageThumbs(){
+    const box = $('bubImages');
+    box.innerHTML = '';
+    App.bubble.images.forEach((img, idx) => {
+      const w = document.createElement('div'); w.className = 'thumbWrap';
+      w.innerHTML = '<img src="' + img.dataUrl + '" alt=""><button class="thumbX" data-i="' + idx + '" title="Remove image">×</button>';
+      box.appendChild(w);
+    });
+  },
+  async addImage(file){
+    // FIX: clipboard paste and the Image button share ONE path — max 2 images total.
+    // The slot is reserved synchronously so concurrent pastes cannot race past the cap.
+    if (App.bubble.images.length >= 2){ toast('Max 2 images — remove one to add another.'); return; }
+    const img = { name: file.name || 'clipboard', dataUrl: '' };
+    App.bubble.images.push(img);
+    this.renderImageThumbs();
+    let dataUrl;
+    try { dataUrl = await fileToDataUrl(file); }
+    catch(e){ App.bubble.images.splice(App.bubble.images.indexOf(img), 1); this.renderImageThumbs(); toast('Could not read that image.'); return; }
+    img.dataUrl = dataUrl;
+    this.renderImageThumbs();
+  },
+  addLink(url){
+    if (!/^https?:\/\//i.test(url.trim())){ toast('Link must start with http(s)://'); return; }
+    App.bubble.links.push(url.trim());
+    const row = document.createElement('div');
+    row.className = 'linkRow';
+    row.innerHTML = '<span class="u">' + esc(url.trim()) + '</span><button class="thumbX" data-li="' + (App.bubble.links.length-1) + '" title="Remove link">×</button>';
+    $('bubLinks').appendChild(row);
   },
   close(){
     this.open = false;
@@ -1123,40 +1800,24 @@ const Bubble = {
     let top = (y + 12 + h <= vh - 8) ? y + 12 : Math.max(8, y - h - 12);
     this.el.style.left = left + 'px';
     this.el.style.top  = top + 'px';
-  },
-  addImage(file){
-    if (App.bubble.images.length >= 2){ toast('Max 2 images in v1 — resize, or use a model with larger context.'); return; }
-    const reader = new FileReader();
-    reader.onload = () => {
-      App.bubble.images.push({ name: file.name, dataUrl: reader.result });
-      const wrap = document.createElement('div');
-      wrap.className = 'thumbWrap';
-      wrap.innerHTML = '<img src="' + reader.result + '" alt=""><button class="thumbX" data-i="' + (App.bubble.images.length-1) + '">✕</button>';
-      $('bubImages').appendChild(wrap);
-    };
-    reader.readAsDataURL(file);
-  },
-  addLink(url){
-    if (!/^https?:\/\//i.test(url.trim())){ toast('Link must start with http(s)://'); return; }
-    App.bubble.links.push(url.trim());
-    const row = document.createElement('div');
-    row.className = 'linkRow';
-    row.innerHTML = '<span class="u">' + esc(url.trim()) + '</span><button class="thumbX" data-li="' + (App.bubble.links.length-1) + '">✕</button>';
-    $('bubLinks').appendChild(row);
-  },
-  showAnswer(md){
-    $('bubAns').innerHTML = renderMarkdown(md);
-    $('bubThink').style.display = 'none';
-    $('bubAskBtn').style.display = 'none';
-    $('bubInsertBtn').style.display = '';
-    $('bubAgainBtn').style.display = '';
-    $('bubRes').classList.add('on');
-    this.el.style.top = Math.max(8, Math.min(parseInt(this.el.style.top,10), window.innerHeight - this.el.offsetHeight - 8)) + 'px';
   }
 };
 
+/* image file -> data URL (pure modern API, no legacy FileReader) */
+async function fileToDataUrl(file){
+  const buf = await file.arrayBuffer();
+  const mime = file.type || 'application/octet-stream';
+  const bytes = new Uint8Array(buf);
+  let s = '';
+  for (let i = 0; i < bytes.length; i += 8192){
+    s += String.fromCharCode.apply(null, Array.from(bytes.slice(i, i + 8192)));
+  }
+  return 'data:' + mime + ';base64,' + btoa(s);
+}
+
 /* ---- bubble event wiring ---- */
 document.addEventListener('mouseup', (e) => {
+  if (Adaptive.busy){ if (Bubble.open) Bubble.close(); return; }
   const sel = window.getSelection();
   if (!sel || sel.isCollapsed || !sel.toString().trim()){ if (Bubble.open && !Bubble.el.contains(e.target)) Bubble.close(); return; }
   const anchor = sel.anchorNode;
@@ -1178,11 +1839,13 @@ document.addEventListener('keydown', (e) => {
 });
 
 async function askSelection(){
+  if (Adaptive.busy) return;
   const q = $('bubQ').value.trim();
   if (!q){ toast('Type a question first.'); return; }
   Bubble.asking = true;
   $('bubAskBtn').disabled = true;
   $('bubAskBtn').textContent = 'Thinking…';
+  $('bubAskBtn').style.display = 'none';
   $('bubThink').style.display = 'flex';
   $('bubRes').classList.add('on');
   $('bubAns').innerHTML = '';
@@ -1201,17 +1864,49 @@ async function askSelection(){
     App.bubble.lastAnswer = ans;           // held for "insert into workspace"
     App.bubble.lastQuestion = q;
     App.bubble.lastSelection = bubble.selText;
+
+    // Option C: bubble shows ONLY this latest exchange; full history goes to the dock.
     Bubble.showAnswer(ans);
+
+    // accumulate in the docked Selection Q&A section (never pruned)
+    App.selQA.push({
+      ts: now(),
+      lessonId: App.bubble.lessonId,
+      lessonTitle: lesson.title,
+      selection: bubble.selText,
+      question: q,
+      answer: ans
+    });
+    saveSelQA();
+    renderSelQA();
+
+    // adaptive meter: selection-bubble questions only
+    adaptiveRecordQuestion();
   } catch(err){
     $('bubThink').style.display = 'none';
     $('bubAskBtn').disabled = false;
-    $('bubAskBtn').textContent = 'Ask ✦';
+    $('bubAskBtn').textContent = 'Ask';
+    $('bubAskBtn').style.display = '';
     $('bubRes').classList.remove('on');
     errToast('Selection Q&A failed: ' + err.message + '  (or switch to Demo mode)');
   } finally {
     Bubble.asking = false;
   }
 }
+
+function showBubbleAnswerActions(){
+  $('bubAskBtn').style.display = 'none';
+  $('bubInsertBtn').style.display = '';
+  $('bubAgainBtn').style.display = '';
+}
+
+Bubble.showAnswer = function(md){
+  $('bubAns').innerHTML = renderMarkdown(md);
+  $('bubThink').style.display = 'none';
+  $('bubRes').classList.add('on');
+  showBubbleAnswerActions();
+  this.el.style.top = Math.max(8, Math.min(parseInt(this.el.style.top,10), window.innerHeight - this.el.offsetHeight - 8)) + 'px';
+};
 
 function insertNoteFromBubble(){
   if (!App.bubble.lastAnswer) return;
@@ -1226,24 +1921,24 @@ function insertNoteFromBubble(){
   });
   saveWorkspace();
   renderLesson();                 // re-render lesson so note appears inline
-  toast('Note inserted into the lesson. Edit or delete it inline.');
+  toast('Note inserted — click it in the sidebar to view it.');
   Bubble.close();
 }
 
 /* ============================================================
-   Docked chat flow
+   Docked chat flow (normal follow-ups + adaptive discussion)
    ============================================================ */
 async function sendFollowup(){
+  if (Adaptive.busy) return;
   const input = $('dockInput');
   const text = input.value.trim();
   if (!text) return;
   input.value = '';
   App.chat.push({ role:'user', content:text });
   renderChat(); saveChat();
-  // optimistic helper bubble
   const typing = document.createElement('div');
   typing.className = 'dmsg bot';
-  typing.innerHTML = '<span class="spin"></span> Teaching…';
+  typing.innerHTML = '<span class="spin" style="flex-shrink:0"></span> Teaching…';
   $('dockBody').appendChild(typing); typing.scrollIntoView({block:'end'});
   try {
     const ans = await LLMService.chat(followupMessages(text), { temperature: 0.6 });
@@ -1255,6 +1950,14 @@ async function sendFollowup(){
     App.chat.push({ role:'error', content: err.message });
     renderChat(); saveChat();
   }
+}
+
+function handleDockSend(){
+  if (Adaptive.busy) return;
+  const text = $('dockInput').value.trim();
+  if (!text) return;
+  if (Adaptive.state === 'discussing'){ sendDiscuss(text); return; }
+  sendFollowup();
 }
 
 /* ============================================================
@@ -1284,7 +1987,7 @@ async function onFirstMessage(){
     App.chat.pop();   // drop the user message so a retry starts clean
     saveChat();
     showStart();
-    errToast('Workspace generation failed: ' + err.message + ' — check ⚙️ Settings (base URL, model, key) or enable Demo mode.');
+    errToast('Workspace generation failed: ' + err.message + ' — check Settings or enable Demo mode.');
   } finally {
     $('startSendBtn').disabled = false;
     $('startMsg').disabled = false;
@@ -1292,21 +1995,62 @@ async function onFirstMessage(){
 }
 
 /* ============================================================
-   Settings modal
+   Settings modal (provider presets + model dropdown + custom fallback)
    ============================================================ */
+function detectProvider(baseUrl){
+  const u = (baseUrl || '').toLowerCase();
+  if (u.includes('openai.com')) return 'openai';
+  if (u.includes('openrouter.ai')) return 'openrouter';
+  return 'custom';
+}
+function populateModelSel(provider, currentModel){
+  const sel = $('modelSel');
+  const models = (PROVIDERS[provider] || { models: [] }).models;
+  sel.innerHTML = models.map(m => '<option value="' + esc(m) + '">' + esc(m) + '</option>').join('') +
+    '<option value="">Custom model…</option>';
+  const wrap = $('modelCustomWrap');
+  const cur = currentModel || '';
+  if (models.includes(cur)){
+    sel.value = cur;
+    wrap.hidden = true;
+  } else if (cur){
+    sel.value = '';
+    wrap.hidden = false;
+    $('modelCustom').value = cur;
+  } else {
+    sel.value = models[0] || '';
+    wrap.hidden = true;
+  }
+}
+function syncProviderUI(provider){
+  const custom = provider === 'custom';
+  $('fBaseUrl').style.display = custom ? '' : 'none';
+  if (!custom) $('baseUrl').value = PROVIDERS[provider].baseUrl;
+  populateModelSel(provider, $('modelSel').dataset.lastModel || App.settings.model);
+  $('modelSel').dataset.lastModel = $('modelSel').value;
+}
 function openSettings(){
+  const provider = detectProvider(App.settings.baseUrl);
+  $('providerSel').value = provider;
   $('baseUrl').value = App.settings.baseUrl || '';
-  $('model').value   = App.settings.model || '';
+  $('modelSel').dataset.lastModel = '';
+  syncProviderUI(provider);
   $('apiKey').value  = App.settings.apiKey || '';
   $('demoChk').checked = !!App.settings.demo;
   $('modalOverlay').classList.add('show');
 }
 function saveSettingsFromModal(){
+  const provider = $('providerSel').value;
+  const baseUrl = provider === 'custom' ? $('baseUrl').value.trim() : PROVIDERS[provider].baseUrl;
+  let model = $('modelSel').value;
+  if (model === '') model = $('modelCustom').value.trim();
+  if (!model){ toast('Pick a model (or type a custom one) before saving.'); return; }
   App.settings = {
-    baseUrl: $('baseUrl').value.trim(),
-    model:   $('model').value.trim(),
-    apiKey:  $('apiKey').value.trim(),
-    demo:    $('demoChk').checked
+    provider,
+    baseUrl,
+    model,
+    apiKey:   $('apiKey').value.trim(),
+    demo:     $('demoChk').checked
   };
   LLMService.configure(App.settings);
   saveSettings();
@@ -1321,7 +2065,7 @@ $('demoModeChip').addEventListener('click', () => {
   if (App.settings.demo) App.settings.apiKey = '';
   LLMService.configure(App.settings);
   saveSettings(); renderSourceBadges();
-  toast(App.settings.demo ? 'Demo mode ON — responses simulated locally.' : 'Demo mode OFF — connect a real model in ⚙️ Settings.');
+  toast(App.settings.demo ? 'Demo mode ON — responses simulated locally.' : 'Demo mode OFF — connect a real model in Settings.');
 });
 
 /* ============================================================
@@ -1330,8 +2074,9 @@ $('demoModeChip').addEventListener('click', () => {
 function init(){
   const savedSettings = Storage.get(KEYS.settings, null);
   if (savedSettings){
-    // never restore an apiKey-settings object that would leak demo flag incorrectly; merge safe fields
-    App.settings = { baseUrl: savedSettings.baseUrl || 'https://api.openai.com/v1',
+    const provider = savedSettings.provider || detectProvider(savedSettings.baseUrl);
+    App.settings = { provider,
+                     baseUrl: savedSettings.baseUrl || PROVIDERS[provider === 'custom' ? 'openai' : provider].baseUrl,
                      model: savedSettings.model || 'gpt-4o-mini',
                      apiKey: savedSettings.apiKey || '',
                      demo: savedSettings.demo !== false };   // default to demo if unset
@@ -1340,6 +2085,11 @@ function init(){
 
   const savedChat = Storage.get(KEYS.chat, null);
   if (Array.isArray(savedChat)) App.chat = savedChat;
+
+  const savedSelQA = Storage.get(KEYS.selqa, null);
+  if (Array.isArray(savedSelQA)) App.selQA = savedSelQA;
+
+  adaptiveLoad();
 
   const savedWs = Storage.get(KEYS.workspace, null);
   if (savedWs && Array.isArray(savedWs.lessons) && savedWs.lessons.length){
@@ -1361,17 +2111,21 @@ function init(){
   $('settingsCancel').addEventListener('click', closeSettings);
   $('modalOverlay').addEventListener('mousedown', e => { if (e.target === $('modalOverlay')) closeSettings(); });
   $('settingsSave').addEventListener('click', saveSettingsFromModal);
-  $('presetOpenAI').addEventListener('click', () => { $('baseUrl').value='https://api.openai.com/v1'; $('model').value='gpt-4o-mini'; });
-  $('presetOpenRouter').addEventListener('click', () => { $('baseUrl').value='https://openrouter.ai/api/v1'; $('model').value='openrouter/auto'; });
+  $('providerSel').addEventListener('change', () => syncProviderUI($('providerSel').value));
+  $('modelSel').addEventListener('change', () => {
+    $('modelCustomWrap').hidden = $('modelSel').value !== '';
+  });
   $('demoToggleBtn').addEventListener('click', () => { $('demoChk').checked = !$('demoChk').checked; });
   $('keyToggleBtn').addEventListener('click', () => {
     const k = $('apiKey'); const show = k.type === 'password'; k.type = show ? 'text' : 'password';
     $('keyToggleBtn').textContent = show ? 'hide' : 'show';
   });
   $('pingBtn').addEventListener('click', async () => {
-    // apply current form values temporarily for the ping test
-    LLMService.configure({ baseUrl:$('baseUrl').value.trim(), model:$('model').value.trim(), apiKey:$('apiKey').value.trim(), demo:$('demoChk').checked });
-    $('pingBtn').disabled = true; $('pingBtn').textContent = '…';
+    const provider = $('providerSel').value;
+    let model = $('modelSel').value; if (model === '') model = $('modelCustom').value.trim();
+    LLMService.configure({ provider, baseUrl: provider === 'custom' ? $('baseUrl').value.trim() : PROVIDERS[provider].baseUrl,
+                           model, apiKey: $('apiKey').value.trim(), demo: $('demoChk').checked });
+    $('pingBtn').disabled = true; $('pingBtn').textContent = 'Testing…';
     try { toast(await LLMService.ping()); }
     catch(e){ errToast('Connection failed: ' + e.message); }
     finally { $('pingBtn').disabled = false; $('pingBtn').textContent = 'Test connection'; LLMService.configure(App.settings); }
@@ -1379,13 +2133,19 @@ function init(){
 
   $('dockHead').addEventListener('click', e => { if (e.target.closest('#dockToggle')) return; setDockOpen(!$('dock').classList.contains('open')); });
   $('dockToggle').addEventListener('click', () => setDockOpen(!$('dock').classList.contains('open')));
-  $('dockSendBtn').addEventListener('click', sendFollowup);
-  $('dockInput').addEventListener('keydown', e => { if (e.key==='Enter'){ e.preventDefault(); sendFollowup(); } });
+  $('dockSendBtn').addEventListener('click', handleDockSend);
+  $('dockInput').addEventListener('keydown', e => { if (e.key==='Enter'){ e.preventDefault(); handleDockSend(); } });
+  $('selQAToggle').addEventListener('click', () => {
+    $('selQAToggle').classList.toggle('open');
+  });
 
   $('newTopicBtn').addEventListener('click', () => {
-    if (!confirm('Start a new topic? This clears the current workspace, notes and chat.')) return;
-    App.ws = null; App.chat = []; App.currentLessonId = null; App.bubble.lastAnswer = null;
-    Storage.del(KEYS.workspace); Storage.del(KEYS.chat);
+    if (!confirm('Start a new topic? This clears the current workspace, notes, chat and adaptive meter.')) return;
+    App.ws = null; App.chat = []; App.currentLessonId = null; App.selQA = []; App.bubble.lastAnswer = null;
+    Adaptive.progress = 0; Adaptive.state = 'collecting'; Adaptive.proposal = null; Adaptive.revision = 0;
+    Adaptive.busy = false; Adaptive.stop = false;
+    $('proposalCard').hidden = true; $('stepperOverlay').classList.remove('show');
+    Storage.del(KEYS.workspace); Storage.del(KEYS.chat); Storage.del(KEYS.selqa); Storage.del(KEYS.adaptive);
     $('startMsg').value = '';
     showStart();
   });
@@ -1402,9 +2162,14 @@ function init(){
     const item = e.target.closest('[data-nav]');
     if (item) navTo(item.dataset.nav);
   });
+  $('sbNotes').addEventListener('click', e => {
+    const it = e.target.closest('[data-note]');
+    if (it) openNote(it.dataset.note);
+  });
 
-  // quiz interaction (event delegation)
+  // quiz interaction (event delegation) — locked while the stepper overlay runs
   $('lessonContent').addEventListener('click', e => {
+    if (Adaptive.busy) return;
     const opt = e.target.closest('.quizOpt');
     if (opt){
       const block = opt.closest('.quizBlock');
@@ -1419,37 +2184,52 @@ function init(){
         const r = document.createElement('div');
         r.className = 'quizReveal';
         r.innerHTML = chosen === answer
-          ? '✓ Correct — solid retrieval practice. Moving on!'
-          : '✗ Not quite — the correct answer is <code>' + esc(answer) + '</code>. Note why, then re-try in a day (spacing works).';
+          ? 'Correct — solid retrieval practice. Moving on!'
+          : 'Not quite — the correct answer is <code>' + esc(answer) + '</code>. Note why, then re-try in a day (spacing works).';
         block.appendChild(r);
       }
       return;
     }
     const del = e.target.closest('[data-delnote]');
     if (del){
+      e.stopPropagation();
       App.ws.notes = (App.ws.notes||[]).filter(n => n.id !== del.dataset.delnote);
       saveWorkspace(); renderLesson(); toast('Note deleted.');
+      return;
     }
+    const view = e.target.closest('[data-note]');
+    if (view){ openNote(view.dataset.note); }
   });
 
-  // bubble attachments
+  // note modal
+  $('nClose').addEventListener('click', closeNote);
+  $('nLocate').addEventListener('click', locateNote);
+  $('noteOverlay').addEventListener('mousedown', e => { if (e.target === $('noteOverlay')) closeNote(); });
+
+  // bubble attachments + paste
   $('bubImgBtn').addEventListener('click', () => $('bubFileInput').click());
   $('bubFileInput').addEventListener('change', e => { for (const f of e.target.files) Bubble.addImage(f); });
+  // FIX 2: clipboard image paste inside the bubble — shares the max-2 path with the Image button.
+  $('bubQ').addEventListener('paste', (e) => {
+    const dt = e.clipboardData || e.dataTransfer;
+    if (!dt || !dt.items) return;              // no clipboard access — normal paste continues
+    const imgs = Array.prototype.filter.call(dt.items || [], it => it && typeof it.type === 'string' && it.type.startsWith('image/'));
+    if (!imgs.length) return;                  // text paste — let the browser handle it
+    e.preventDefault();
+    imgs.slice(0, 4).forEach(it => {
+      let f = null;
+      try { f = it.getAsFile(); } catch(err){}
+      if (f) Bubble.addImage(f);               // enforces max-2 via the shared path
+    });
+  });
   $('bubLinkBtn').addEventListener('click', () => {
-    const url = prompt('Paste a link (http(s)://…) — v1 does not fetch its content, it is sent as a reference:');
+    const url = prompt('Paste a link (http(s)://) — v1 does not fetch its content, it is sent as a reference:');
     if (url) Bubble.addLink(url);
   });
   $('bubImages').addEventListener('click', e => {
     const b = e.target.closest('.thumbX'); if (!b) return;
-    const i = +b.dataset.i;
-    App.bubble.images.splice(i,1);
-    const wraps = $('bubImages').children;
-    $('bubImages').innerHTML = '';
-    App.bubble.images.forEach((img,idx) => {
-      const w = document.createElement('div'); w.className='thumbWrap';
-      w.innerHTML = '<img src="' + img.dataUrl + '" alt=""><button class="thumbX" data-i="'+idx+'">✕</button>';
-      $('bubImages').appendChild(w);
-    });
+    App.bubble.images.splice(+b.dataset.i, 1);
+    Bubble.renderImageThumbs();
   });
   $('bubLinks').addEventListener('click', e => {
     const b = e.target.closest('.thumbX'); if (!b) return;
@@ -1457,27 +2237,56 @@ function init(){
     $('bubLinks').innerHTML = '';
     App.bubble.links.forEach((u,i) => {
       const row = document.createElement('div'); row.className='linkRow';
-      row.innerHTML = '<span class="u">'+esc(u)+'</span><button class="thumbX" data-li="'+i+'">✕</button>';
+      row.innerHTML = '<span class="u">'+esc(u)+'</span><button class="thumbX" data-li="'+i+'" title="Remove link">×</button>';
       $('bubLinks').appendChild(row);
     });
   });
   $('bubAskBtn').addEventListener('click', askSelection);
   $('bubInsertBtn').addEventListener('click', insertNoteFromBubble);
   $('bubAgainBtn').addEventListener('click', () => {
+    // Option C: "New question" clears ONLY the bubble — the dock history keeps everything.
     $('bubRes').classList.remove('on'); $('bubAns').innerHTML='';
-    $('bubAskBtn').style.display=''; $('bubAskBtn').disabled=false; $('bubAskBtn').textContent='Ask ✦';
+    $('bubAskBtn').style.display=''; $('bubAskBtn').disabled=false; $('bubAskBtn').textContent='Ask';
     Bubble.resetAttachments(); $('bubQ').value=''; $('bubQ').focus();
   });
   $('bubClose').addEventListener('click', () => Bubble.close());
 
-  // ping badge on dock title tooltip
+  // adaptive: proposal card + stepper
+  $('pcAccept').addEventListener('click', async () => {
+    if (Adaptive.busy || !Adaptive.proposal) return;
+    await runStepper();
+  });
+  $('pcReject').addEventListener('click', () => {
+    if (Adaptive.busy) return;
+    Adaptive.counters.rejected++;
+    adaptiveResetMeter();
+    toast('Proposal rejected — the meter resets and keeps learning from your questions.');
+    adaptiveSave();
+  });
+  $('pcDiscuss').addEventListener('click', () => {
+    if (Adaptive.busy || !Adaptive.proposal) return;
+    Adaptive.state = 'discussing';
+    renderProposalCard();
+    adaptiveSave();
+    if ($('dock').classList.contains('open') === false) setDockOpen(true);
+    App.chat.push({
+      role:'assistant',
+      content:'**[Discussing the change proposal]** Tell me what you\'d like different about the proposed changes — ' +
+              'scope, wording, or something to remove — or say “revise it” and I\'ll rework the proposal and re-present it.'
+    });
+    renderChat(); saveChat();
+    $('dockInput').focus();
+    toast('Discussion thread opened — refine the proposal or decide.');
+  });
+  $('stepperStop').addEventListener('click', () => { Adaptive.stop = true; });
+
   renderSourceBadges();
 }
 
 document.addEventListener('DOMContentLoaded', init);
 
 /* Expose a small debug/test surface (also used by automated checks). */
-window.TP = { LLMService, App, renderMarkdown, Bubble };
+window.TP = { LLMService, App, Adaptive, Bubble, PROVIDERS, renderMarkdown, esc, renderSelQA, openNote };
 </script>
 </body>
 </html>
