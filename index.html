@@ -3,15 +3,19 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Teachly — Self-Building Teaching Workspace (v1.1)</title>
+<title>Teachly — Self-Building Teaching Workspace (v1.2)</title>
 <style>
 /* ============================================================
-   Teachly prototype v1.1 — single self-contained file.
+   Teachly prototype v1.2 — single self-contained file.
    All CSS/JS inline. No build step, no CDNs, fully offline
    except the user's own LLM endpoint.
-   v1.1: provider/model presets, clipboard image paste, refined
-   bubble layout, viewable notes, Selection Q&A history in dock,
-   and the adaptive-workspace feature (demo simulation).
+   v1.2: dock chat removed entirely (removal, not hiding) —
+   Selection Q&A history re-homed to a collapsible sidebar
+   section; adaptive Discuss thread moved directly below the
+   proposal card. LLMService seam, adaptive meter/proposal/
+   stepper, notes and settings intact.
+   v1.1 legacy: provider/model presets, clipboard image paste,
+   refined bubble layout, viewable notes, adaptive workspace.
    Standing UI rule: NO emojis anywhere — text or inline SVG only.
    ============================================================ */
 :root{
@@ -23,7 +27,6 @@
   --prose:#d6dbe6;
   --radius:12px; --radius-sm:8px;
   --shadow:0 10px 30px rgba(0,0,0,.45);
-  --dock-h:46px; --dock-open-h:300px;
   --font-ui:"Segoe UI",system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif;
   --font-prose:Georgia,"Times New Roman",serif;
 }
@@ -155,8 +158,7 @@ textarea.input{resize:vertical; min-height:70px; line-height:1.5;}
 .noteItem .niMeta{color:var(--faint);}
 .sbFoot{margin-top:auto; padding:14px 16px; display:flex; gap:8px; border-top:1px solid var(--border);}
 #notesCount{color:var(--accent); font-weight:600;}
-#mainArea{flex:1; overflow-y:auto; position:relative; scroll-behavior:smooth; padding-bottom:calc(var(--dock-h) + 96px);}
-#app.dock-open #mainArea{padding-bottom:calc(var(--dock-open-h) + 28px);}
+#mainArea{flex:1; overflow-y:auto; position:relative; scroll-behavior:smooth; padding-bottom:96px;}
 #lessonWrap{max-width:820px; margin:0 auto; padding:40px 44px 60px;}
 #lessonNav{display:flex; justify-content:space-between; margin-top:44px; padding-top:20px; border-top:1px solid var(--border);}
 #lessonTitle{font-size:15px; color:var(--muted); margin-bottom:6px; font-weight:600; text-transform:uppercase; letter-spacing:.06em;}
@@ -230,37 +232,18 @@ textarea.input{resize:vertical; min-height:70px; line-height:1.5;}
 .noteMeta{display:flex; justify-content:space-between; align-items:center; margin-top:10px; font-size:11.5px; color:var(--faint);}
 .noteMeta .btn-ghost{padding:3px 8px; font-size:11.5px;}
 
-/* ============ DOCKED CHAT ============ */
-#dock{
-  position:fixed; left:264px; right:0; bottom:0; z-index:60;
-  background:var(--panel); border-top:1px solid var(--border); border-left:1px solid var(--border);
-  height:var(--dock-h); display:flex; flex-direction:column; transition:height .25s ease;
-  box-shadow:0 -6px 24px rgba(0,0,0,.35);
+/* ============ SIDEBAR: Selection Q&A history (collapsible) ============ */
+.selqaToggle{
+  display:flex; align-items:center; gap:8px; padding:7px 10px; cursor:pointer; user-select:none;
+  font-size:12.5px; font-weight:600; color:var(--muted); background:var(--panel2);
+  border:1px solid var(--border); border-radius:var(--radius-sm);
 }
-#dock.open{height:var(--dock-open-h);}
-#dockHead{
-  height:var(--dock-h); min-height:var(--dock-h); display:flex; align-items:center; gap:10px;
-  padding:0 14px; cursor:pointer; border-bottom:1px solid transparent; user-select:none;
-}
-#dock.open #dockHead{border-bottom-color:var(--border);}
-#dockPill{width:8px; height:8px; border-radius:50%; background:var(--good); flex-shrink:0;}
-#dockTitle{font-size:13.5px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
-#dockTitle small{color:var(--faint); font-weight:500; margin-left:8px;}
-/* Selection Q&A history section (Option C: bubble stays latest-only) */
-#dockSelQA{display:none;}
-#dock.open #dockSelQA{display:block;}
-#selQAToggle{
-  display:flex; align-items:center; gap:8px; padding:6px 14px; cursor:pointer; user-select:none;
-  font-size:12.5px; font-weight:600; color:var(--muted); border-bottom:1px solid var(--border);
-  background:var(--panel3);
-}
-#selQAToggle:hover{color:var(--text);}
-#selQACount{background:var(--accent-soft); color:var(--accent); font-size:11px; font-weight:700;
-  padding:1px 8px; border-radius:999px;}
-#selQAToggle .caret{transition:transform .15s; display:inline-flex; color:var(--faint);}
-#selQAToggle.open .caret{transform:rotate(180deg);}
-#selQAList{display:none; max-height:150px; overflow-y:auto; padding:8px 14px; border-bottom:1px solid var(--border);}
-#selQAToggle.open #selQAList{display:block;}
+.selqaToggle:hover{color:var(--text); border-color:var(--accent);}
+#selqaCount{background:var(--accent-soft); color:var(--accent); font-size:10.5px; font-weight:700; padding:1px 7px; border-radius:999px;}
+.selqaToggle .caret{transition:transform .15s; display:inline-flex; color:var(--faint);}
+.selqaToggle.open .caret{transform:rotate(180deg);}
+#selqaList{display:none; max-height:230px; overflow-y:auto; margin-top:6px;}
+.selqaToggle.open #selqaList{display:block;}
 .selqaEntry{background:var(--panel2); border:1px solid var(--border2); border-radius:9px; padding:9px 12px; margin-bottom:8px; font-size:12.3px;}
 .selqaEntry .sqSel{color:var(--accent); font-style:italic; font-size:12px;}
 .selqaEntry .sqHead{display:flex; gap:6px; align-items:baseline;}
@@ -270,24 +253,15 @@ textarea.input{resize:vertical; min-height:70px; line-height:1.5;}
 .selqaEntry .sqA p{margin-bottom:5px;}
 .selqaEntry .sqA p:last-child{margin-bottom:0;}
 .selqaEntry .sqLesson{color:var(--faint); font-size:11px; margin-top:3px;}
-#dockBody{flex:1; overflow-y:auto; padding:8px 16px 6px; display:none; flex-direction:column; gap:10px;}
-#dock.open #dockBody{display:flex;}
-.dmsg{max-width:78%; padding:9px 13px; border-radius:12px; font-size:13.5px; line-height:1.55; white-space:pre-wrap; word-wrap:break-word;}
+
+/* ============ PROPOSAL DISCUSSION THREAD (directly below the proposal card) ============ */
+.dmsg{max-width:85%; padding:8px 12px; border-radius:12px; font-size:12.8px; line-height:1.5; white-space:pre-wrap; word-wrap:break-word;}
 .dmsg.user{align-self:flex-end; background:var(--accent-soft); border:1px solid rgba(122,162,247,.35); color:#e8efff;}
 .dmsg.bot{align-self:flex-start; background:var(--panel2); border:1px solid var(--border); color:var(--prose);}
 .dmsg.bot p{margin-bottom:8px;} .dmsg.bot p:last-child{margin-bottom:0;}
 .dmsg.bot ul,.dmsg.bot ol{padding-left:20px; margin-bottom:8px;}
 .dmsg.bot code{font-family:Consolas,monospace; font-size:12px; background:var(--panel3); padding:1px 5px; border-radius:4px;}
 .dmsg.err{background:rgba(248,113,113,.08); border-color:rgba(248,113,113,.4); color:#fca5a5;}
-.dmsg .dlbl{display:block; font-size:10.5px; color:var(--accent); letter-spacing:.04em; text-transform:uppercase; margin-bottom:4px;}
-#dockInputRow{display:none; align-items:center; gap:8px; padding:10px 14px 14px; border-top:1px solid var(--border);}
-#dock.open #dockInputRow{display:flex;}
-#dockInput{
-  flex:1; background:var(--panel2); border:1px solid var(--border2); color:var(--text);
-  border-radius:10px; padding:10px 14px; outline:none; font-size:14px;
-}
-#dockInput:focus{border-color:var(--accent);}
-#dockSend{padding:10px 18px;}
 
 /* ============ SELECTION BUBBLE ============ */
 #bubble{
@@ -360,12 +334,13 @@ textarea.input{resize:vertical; min-height:70px; line-height:1.5;}
 .meterSub{font-size:9.5px; color:var(--faint); line-height:1.3; margin-top:2px;}
 
 /* ============ ADAPTIVE: change proposal card ============ */
-#proposalCard{
+#proposalWrap{
   position:fixed; top:160px; right:18px; z-index:68; width:350px; max-height:calc(100vh - 200px); overflow-y:auto;
-  background:var(--panel); border:1px solid rgba(251,191,36,.35); border-radius:16px; padding:16px;
+  background:var(--panel); border:1px solid rgba(251,191,36,.35); border-radius:16px;
   box-shadow:0 16px 48px rgba(0,0,0,.5); font-family:var(--font-ui);
 }
-#proposalCard[hidden]{display:none;}
+#proposalWrap[hidden]{display:none;}
+#proposalCard{padding:16px;}
 .pcHead{display:flex; align-items:center; gap:8px; font-size:14px; font-weight:700; color:var(--text);}
 .pcDot{width:8px; height:8px; border-radius:50%; background:var(--warn); flex-shrink:0;}
 .pcRevBadge{font-size:10px; font-weight:700; color:var(--warn); background:rgba(251,191,36,.12);
@@ -377,6 +352,19 @@ textarea.input{resize:vertical; min-height:70px; line-height:1.5;}
 .pcList .cSum{color:var(--prose); display:block; margin-top:2px; line-height:1.45;}
 .pcStatus{font-size:11.5px; color:var(--faint); margin:2px 0 10px;}
 .pcFoot{display:flex; gap:7px; justify-content:flex-end; margin-top:4px;}
+
+/* proposal discussion thread — sits directly below the proposal card */
+#proposalDiscuss{border-top:1px solid var(--border); margin-top:12px;}
+.pdHead{display:flex; align-items:center; gap:8px; font-size:12.5px; font-weight:600; color:var(--muted);
+  padding:7px 10px; background:var(--panel3);}
+.pdThread{display:flex; flex-direction:column; gap:8px; padding:9px 12px; max-height:230px; overflow-y:auto;}
+.pdInputRow{display:flex; align-items:center; gap:8px; padding:8px 12px;}
+#pdInput{
+  flex:1; background:var(--panel2); border:1px solid var(--border2); color:var(--text);
+  border-radius:10px; padding:9px 12px; outline:none; font-size:13.5px;
+}
+#pdInput:focus{border-color:var(--accent);}
+#pdSend{padding:9px 16px;}
 
 /* ============ ADAPTIVE: stepper overlay ============ */
 #stepperOverlay{
@@ -454,7 +442,7 @@ textarea.input{resize:vertical; min-height:70px; line-height:1.5;}
 #nFoot{display:flex; gap:8px; justify-content:flex-end; margin-top:16px;}
 
 /* toast */
-#toast{position:fixed; bottom:calc(var(--dock-h) + 16px); right:18px; z-index:300;
+#toast{position:fixed; bottom:16px; right:18px; z-index:300;
   background:var(--panel3); border:1px solid var(--border2); color:var(--text);
   padding:10px 16px; border-radius:10px; font-size:13px; box-shadow:var(--shadow);
   opacity:0; transform:translateY(8px); transition:all .25s; pointer-events:none; max-width:340px;}
@@ -462,11 +450,10 @@ textarea.input{resize:vertical; min-height:70px; line-height:1.5;}
 
 @media (max-width:760px){
   #sidebar{display:none;}  /* desktop-first: sidebar hidden on narrow screens */
-  #dock{left:0;}
   #lessonWrap{padding:24px 20px 60px;}
   #lessonH1{font-size:24px;}
   #bubble{width:calc(100vw - 20px);}
-  #proposalCard{top:150px; right:8px; width:calc(100vw - 16px);}
+  #proposalWrap{top:150px; right:8px; width:calc(100vw - 16px);}
 }
 </style>
 </head>
@@ -484,7 +471,7 @@ textarea.input{resize:vertical; min-height:70px; line-height:1.5;}
         <div id="logoMark">T</div>
         <h1>Teachly</h1>
       </div>
-      <p id="startSub">Tell me what you want to learn. I'll build you a teaching workspace — mission, outline and interactive lessons — and stay docked below to answer follow-ups.</p>
+      <p id="startSub">Tell me what you want to learn. I'll build you a teaching workspace — mission, outline and interactive lessons. Ask about anything by selecting it — every Q&amp;A is saved in the sidebar.</p>
       <div id="startChipRow">
         <span class="chip" id="demoModeChip" title="Click to toggle">Demo mode: ON</span>
         <span class="chip" id="modelChip">Model: —</span>
@@ -497,9 +484,9 @@ textarea.input{resize:vertical; min-height:70px; line-height:1.5;}
         </div>
       </div>
       <div id="startHintSteps">
-        <div class="stepCard"><span class="stepNum">1</span> Type a topic and send — the chat docks to the bottom while I build the workspace.</div>
+        <div class="stepCard"><span class="stepNum">1</span> Type a topic and send — I build the workspace behind a live progress panel.</div>
         <div class="stepCard"><span class="stepNum">2</span> Highlight any sentence in a lesson → ask about it, attach images &amp; links. The more you ask, the more I learn about you (top-right meter).</div>
-        <div class="stepCard"><span class="stepNum">3</span> Ask follow-ups in the docked chat. Everything auto-saves locally.</div>
+        <div class="stepCard"><span class="stepNum">3</span> Every Q&amp;A is stored in the sidebar's Selection Q&amp;A history. Everything auto-saves locally.</div>
       </div>
     </div>
   </div>
@@ -525,8 +512,19 @@ textarea.input{resize:vertical; min-height:70px; line-height:1.5;}
         <div id="sbOutline"></div>
       </div>
       <div class="sbSection">
-        <div class="sbLabel">Selection Q&amp;A — <span id="notesCount">0 notes</span></div>
-        <div class="hint" style="margin-top:4px">Select any text in a lesson to ask about it. Click a note to view it.</div>
+        <div class="sbLabel">Selection Q&amp;A history</div>
+        <div id="selqaToggle" class="selqaToggle open" title="Toggle Selection Q&amp;A history">
+          <span class="caret" id="selqaCaret"><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M5 2 L9 6 L1 6 Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg></span>
+          <span>Full history</span>
+          <span id="selqaCount" hidden>0</span>
+          <span style="flex:1"></span>
+        </div>
+        <div id="selqaList"></div>
+        <div class="hint" style="margin-top:4px">Every selection Q&amp;A is kept here — nothing scrolls away. The bubble shows only your latest exchange.</div>
+      </div>
+      <div class="sbSection">
+        <div class="sbLabel">Inserted notes — <span id="notesCount">0 notes</span></div>
+        <div class="hint" style="margin-top:4px">Click a note to view it.</div>
         <div id="sbNotes"></div>
       </div>
       <div class="sbFoot">
@@ -561,31 +559,6 @@ textarea.input{resize:vertical; min-height:70px; line-height:1.5;}
     <div class="meterSub" id="meterSub"></div>
   </div>
 
-  <!-- ================= DOCKED CHAT ================= -->
-  <div id="dock" hidden>
-    <div id="dockHead" title="Toggle chat">
-      <span id="dockPill"></span>
-      <span id="dockTitle">Teaching Assistant<small id="dockModel"></small></span>
-      <span style="flex:1"></span>
-      <button class="icon-btn" id="dockToggle" title="Expand / collapse"></button>
-    </div>
-    <div id="dockSelQA">
-      <div id="selQAToggle" title="Toggle Selection Q&amp;A history">
-        <span class="caret" id="selQACaret"><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M5 2 L9 6 L1 6 Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg></span>
-        <span>Selection Q&amp;A</span>
-        <span id="selQACount" hidden>0</span>
-        <span style="flex:1"></span>
-        <span class="hint" style="font-size:10.5px">full history — nothing scrolls away</span>
-      </div>
-      <div id="selQAList"></div>
-    </div>
-    <div id="dockBody"></div>
-    <div id="dockInputRow">
-      <input id="dockInput" placeholder="Follow-up question… (Enter to send)" autocomplete="off">
-      <button class="btn btn-primary" id="dockSendBtn">Send</button>
-    </div>
-  </div>
-
   <!-- ================= SELECTION BUBBLE ================= -->
   <div id="bubble" hidden>
     <div id="bubHead"><span class="hbub"></span> Ask about selection
@@ -617,18 +590,28 @@ textarea.input{resize:vertical; min-height:70px; line-height:1.5;}
     </div>
   </div>
 
-  <!-- ================= ADAPTIVE: change proposal card ================= -->
-  <div id="proposalCard" hidden>
-    <div class="pcHead"><span class="pcDot"></span> Change proposal <span class="pcRevBadge" id="pcRevBadge" hidden>Revised</span></div>
-    <div class="pcBody">
-      <p>This is what you are asking for. Apply these changes to the workspace?</p>
-      <ul class="pcList" id="pcList"></ul>
+  <!-- ================= ADAPTIVE: change proposal card + discussion thread (directly below card) ================= -->
+  <div id="proposalWrap" hidden>
+    <div id="proposalCard">
+      <div class="pcHead"><span class="pcDot"></span> Change proposal <span class="pcRevBadge" id="pcRevBadge" hidden>Adjusted after discussion</span></div>
+      <div class="pcBody">
+        <p>This is what you are asking for. Apply these changes to the workspace?</p>
+        <ul class="pcList" id="pcList"></ul>
+      </div>
+      <div class="pcStatus" id="pcStatus"></div>
+      <div class="pcFoot">
+        <button class="btn bubMini" id="pcReject">Reject</button>
+        <button class="btn bubMini" id="pcDiscuss">Discuss</button>
+        <button class="btn btn-primary bubMini" id="pcAccept">Accept</button>
+      </div>
     </div>
-    <div class="pcStatus" id="pcStatus"></div>
-    <div class="pcFoot">
-      <button class="btn bubMini" id="pcReject">Reject</button>
-      <button class="btn bubMini" id="pcDiscuss">Discuss</button>
-      <button class="btn btn-primary bubMini" id="pcAccept">Accept</button>
+    <div id="proposalDiscuss" hidden>
+      <div class="pdHead">Discussion — this proposal</div>
+      <div class="pdThread" id="pdThread"></div>
+      <div class="pdInputRow">
+        <input id="pdInput" placeholder="Refine the proposal — say “revise it” to rework the change list…" autocomplete="off">
+        <button class="btn btn-primary" id="pdSendBtn">Send</button>
+      </div>
     </div>
   </div>
 
@@ -725,9 +708,15 @@ textarea.input{resize:vertical; min-height:70px; line-height:1.5;}
 <script>
 'use strict';
 /* ============================================================
-   Teachly prototype v1.1 — application logic.
+   Teachly prototype v1.2 — application logic.
    Architecture: UI code ONLY talks to `TP.LLMService`. A future
    backend swap implements the same interface (see README §Backend).
+   v1.2: dock chat removed entirely (removal, not hiding) — the
+   Selection Q&A history now lives in a collapsible sidebar
+   section, and the adaptive Discuss thread sits directly below
+   the proposal card. The selection bubble is the only question
+   surface. LLMService seam, adaptive meter/proposal/stepper,
+   notes and settings are unchanged.
    v1.1 additions: Selection Q&A history (Option C), adaptive
    workspace (meter/proposal/stepper, demo-simulated), provider
    presets, clipboard image paste, viewable notes.
@@ -736,17 +725,12 @@ textarea.input{resize:vertical; min-height:70px; line-height:1.5;}
 /* ---------------- tiny helpers ---------------- */
 const $  = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const debounce = (fn, ms) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 let toastTimer;
 function toast(msg){ const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 3200); }
 function errToast(msg){ const t = $('errorToast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 6000); }
 const now = () => new Date().toISOString();
 const fmtTs = (iso) => { try { return new Date(iso).toLocaleString(); } catch(e){ return String(iso); } };
-
-/* inline SVG glyphs (no emojis in UI chrome) */
-const SVG_CHEV_DOWN = '<svg width="11" height="11" viewBox="0 0 11 11" aria-hidden="true"><path d="M5.5 3 L10 7.5 L1 7.5 Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>';
-const SVG_CHEV_UP   = '<svg width="11" height="11" viewBox="0 0 11 11" aria-hidden="true"><path d="M5.5 8 L10 3.5 L1 3.5 Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>';
 
 /* ---------------- persistence ---------------- */
 const Storage = {
@@ -755,7 +739,7 @@ const Storage = {
   del(key){ try { localStorage.removeItem(key); } catch(e){} }
 };
 const KEYS = {
-  settings:'tp_settings_v1', workspace:'tp_workspace_v1', chat:'tp_chat_v1',
+  settings:'tp_settings_v1', workspace:'tp_workspace_v1',
   selqa:'tp_selqa_v1', adaptive:'tp_adaptive_v1'
 };
 
@@ -928,7 +912,7 @@ const LLMService = (() => {
           '## Your next steps\n\n' +
           '1. Re-solve the worked example from lesson 3 *from memory* in two days.\n' +
           '2. Quiz yourself on every lesson\'s quiz — that is retrieval practice.\n' +
-          '3. Ask a follow-up in the chat dock for any concept here that still feels fuzzy.\n\n' +
+          '3. Select any concept here that still feels fuzzy and ask about it with the Ask bubble.\n' +
           '> Learning ' + t + ' is a loop: study → practice → get feedback → repeat. You have everything you need to run that loop now.'
       }
     ];
@@ -1028,7 +1012,7 @@ const LLMService = (() => {
       return JSON.stringify(_demoCurriculumJson(demoCtx.topic));
     }
 
-    // adaptive-workspace discussion thread (dock)
+    // adaptive-workspace proposal discussion thread
     if (isDisc){
       if (/revise|revision|change|instead|different|update|reword|alter|rework/i.test(last)){
         return 'Good call — I\'ll revise the proposal to fit that. [__REVISED__]\n\n' +
@@ -1058,19 +1042,6 @@ const LLMService = (() => {
       );
     }
 
-    // generic follow-up in the dock
-    const topic = demoCtx.topic || 'this topic';
-    const brief = last.replace(/\s+/g,' ').slice(0,120);
-    return (
-      'Good question — **“' + brief + '”** — especially in the middle of learning **' + topic + '**.\n\n' +
-      'Here\'s the frame I\'d use: separate *what you already know* from *what\'s genuinely new* in your question. ' +
-      'Most follow-ups are one of three types — a *definition gap*, a *how-does-it-fit gap*, or a *practice gap*. ' +
-      'Name yours, and the fix is usually small.\n\n' +
-      '- If it\'s a **definition gap**: go back to Lesson 1\'s working definition and re-read it out loud.\n' +
-      '- If it\'s a **fit gap**: try the comparison exercise — similar to / different from something you already know.\n' +
-      '- If it\'s a **practice gap**: run the four-step worked example from Lesson 3 on a tiny real case.\n\n' +
-      'I can go deeper on any of these, or generate a mini-exercise for you on the spot. What would help most?'
-    );
   }
 
   /* ---------------- public seam ---------------- */
@@ -1187,9 +1158,7 @@ const App = {
   settings: { ...LLMService.getConfig() },          // mirrors LLMService cfg + apiKey (kept out of getConfig)
   ws: null,      // { title, mission, outline, lessons, notes[], topic, createdAt }
   currentLessonId: null,
-  chat: [],      // [{role, content}] docked chat history
   selQA: [],     // [{ts, lessonId, lessonTitle, selection, question, answer}] — Option C history (never pruned)
-  phrase: '',    // last user message (for dock context)
   bubble: { lessonId:null, images:[], links:[], refs:[] }
 };
 
@@ -1200,16 +1169,15 @@ const PROVIDERS = {
 
 function saveSettings(){ Storage.set(KEYS.settings, App.settings); }
 function saveWorkspace(){ Storage.set(KEYS.workspace, App.ws); }
-const saveChat = debounce(() => Storage.set(KEYS.chat, App.chat), 300);
 function saveSelQA(){ Storage.set(KEYS.selqa, App.selQA); }
-function persistAll(){ saveSettings(); if (App.ws) saveWorkspace(); saveChat(); saveSelQA(); }
+function persistAll(){ saveSettings(); if (App.ws) saveWorkspace(); saveSelQA(); }
 
 /* ============================================================
    Adaptive workspace module (demo simulation, LLMService seam).
-   Meter counts ONLY selection-bubble questions (dock follow-ups
-   do not count). Threshold constants live here so weighting can
-   change later (e.g. image questions weigh more, cursive drift
-   over sessions) without touching UI code.
+   Meter counts selection-bubble questions only (25% each — the
+   dock is gone; the bubble is the sole question surface).
+   Threshold constants live here so weighting can change later
+   without touching UI code.
    ============================================================ */
 const Adaptive = {
   stepPct: 25,                 // progress per selection-bubble question (threshold after 4 questions)
@@ -1299,7 +1267,7 @@ function adaptiveResetMeter(){
   Adaptive.state = 'collecting';
   Adaptive.proposal = null;
   Adaptive.revision = 0;
-  $('proposalCard').hidden = true;
+  $('proposalWrap').hidden = true;
   renderMeter();
   adaptiveSave();
 }
@@ -1310,12 +1278,14 @@ function lessonLabel(id){
 }
 
 function renderProposalCard(){
-  const card = $('proposalCard');
+  const wrap = $('proposalWrap');
   if (!Adaptive.proposal || (Adaptive.state !== 'proposal' && Adaptive.state !== 'discussing')){
-    card.hidden = true;
+    wrap.hidden = true;
+    $('proposalDiscuss').hidden = true;
     return;
   }
-  card.hidden = false;
+  wrap.hidden = false;
+  $('proposalDiscuss').hidden = Adaptive.state !== 'discussing';
   $('pcRevBadge').hidden = Adaptive.revision === 0;
   const list = $('pcList');
   list.innerHTML = Adaptive.proposal.changes.map(c =>
@@ -1323,10 +1293,10 @@ function renderProposalCard(){
     '<span class="cSum">' + esc((c.body || '').replace(/\n+/g, ' ').slice(0, 160)) + '</span></li>').join('');
   const status = $('pcStatus');
   if (Adaptive.state === 'discussing'){
-    status.textContent = 'In discussion — chat below to refine, or decide now.';
+    status.textContent = 'In discussion — refine the proposal below, or decide now.';
     $('pcDiscuss').style.display = 'none';
   } else {
-    status.textContent = Adaptive.revision > 0 ? 'Revised after your discussion.' : 'Generated from your selection questions.';
+    status.textContent = Adaptive.revision > 0 ? 'Adjusted after discussion.' : 'Generated from your selection questions.';
     $('pcDiscuss').style.display = '';
   }
 }
@@ -1395,7 +1365,7 @@ async function runStepper(){
   Adaptive.progress = 0;
   Adaptive.proposal = null;
   Adaptive.revision = 0;
-  $('proposalCard').hidden = true;
+  $('proposalWrap').hidden = true;
   renderMeter();
   adaptiveSave();
   toast('Applied ' + completed + ' change' + (completed === 1 ? '' : 's') + ' to the workspace.' +
@@ -1413,7 +1383,6 @@ function renderSourceBadges(){
   $('demoModeChip').style.color = demo ? 'var(--warn)' : 'var(--muted)';
   const m = App.settings.model || '—';
   $('modelChip').textContent = 'Model: ' + (demo ? 'simulated locally' : m);
-  $('dockModel').textContent = demo ? '· demo' : '· ' + m;
 }
 
 /* ---- start state ---- */
@@ -1421,7 +1390,7 @@ function showStart(){
   $('startView').hidden = false;
   $('workspaceView').hidden = true;
   $('setupView').hidden = true;
-  $('dock').hidden = true;
+  $('proposalWrap').hidden = true;
   $('meterWrap').hidden = true;
   renderSourceBadges();
 }
@@ -1431,7 +1400,7 @@ const SETUP_STEPS = ['Reading the mission brief','Designing the outline','Writin
 function showSetup(topic){
   $('startView').hidden = true;
   $('workspaceView').hidden = true;
-  $('dock').hidden = true;
+  $('proposalWrap').hidden = true;
   $('setupView').hidden = false;
   $('setupTopic').textContent = 'Topic: “' + topic + '”';
   $('setupSteps').innerHTML = SETUP_STEPS.map((s,i) =>
@@ -1507,19 +1476,11 @@ function renderLesson(){
   renderSidebar();
 }
 
-function setDockOpen(open){
-  $('dock').classList.toggle('open', open);
-  $('app').classList.toggle('dock-open', open);
-  $('dockToggle').innerHTML = open ? SVG_CHEV_DOWN : SVG_CHEV_UP;
-}
 function showWorkspace(){
   $('startView').hidden = true;
   $('setupView').hidden = true;
   $('workspaceView').hidden = false;
-  $('dock').hidden = false;
-  setDockOpen(true);
   renderLesson();
-  renderChat();
   renderSelQA();
   renderSourceBadges();
   renderMeter();
@@ -1528,23 +1489,13 @@ function showWorkspace(){
 
 function navTo(id){ App.currentLessonId = id; renderLesson(); $('mainArea').scrollTop = 0; }
 
-/* ---- docked chat + Selection Q&A history (Option C) ---- */
-function renderChat(){
-  const box = $('dockBody');
-  box.innerHTML = App.chat.map(m => {
-    if (m.role === 'user') return '<div class="dmsg user">' + esc(m.content) + '</div>';
-    if (m.role === 'error') return '<div class="dmsg err">Error: ' + esc(m.content) + '</div>';
-    return '<div class="dmsg bot">' + renderMarkdown(m.content) + '</div>';
-  }).join('');
-  box.scrollTop = box.scrollHeight;
-}
-
+/* ---- sidebar: Selection Q&A history (Option C: full history, collapsible) ---- */
 function renderSelQA(){
   const n = App.selQA.length;
-  const count = $('selQACount');
+  const count = $('selqaCount');
   count.hidden = n === 0;
   count.textContent = n;
-  const list = $('selQAList');
+  const list = $('selqaList');
   // newest first; entries are never removed (Option C: nothing scrolls away)
   list.innerHTML = App.selQA.slice().reverse().map(e =>
     '<div class="selqaEntry">' +
@@ -1648,32 +1599,9 @@ function selectionMessages(bubble, lessonTitle){
 }
 
 /* ============================================================
-   Follow-up chat (via LLMService)
-   ============================================================ */
-const FOLLOWUP_SYSTEM =
-  'You are the teaching assistant for a self-building teaching workspace. You are given the workspace mission, outline, ' +
-  'the current lesson excerpt, and recent conversation. Answer the student\'s follow-up in the flow of the current lesson. ' +
-  'Use markdown. If the student wants a brand-new topic, suggest using the "New topic" button.\n\n' +
-  '[INTENT: __FOLLOWUP__]';
-
-function followupMessages(text){
-  const lesson = App.ws.lessons.find(l => l.id === App.currentLessonId);
-  const excerpt = lesson ? (lesson.content || '').slice(0, 1800) : '';
-  const outline = App.ws.outline.map(o => o.id + ' ' + o.title).join('; ');
-  const recent = App.chat.slice(-6).map(m => m.role + ': ' + String(m.content).slice(0,600)).join('\n');
-  return [
-    { role:'system', content: FOLLOWUP_SYSTEM },
-    { role:'user', content:
-        'MISSION: ' + (App.ws.mission||'') + '\n' +
-        'OUTLINE: ' + outline + '\n' +
-        'CURRENT LESSON ("' + (lesson ? lesson.title : '?') + '"): ' + excerpt + '\n\n' +
-        'Recent conversation:\n' + recent + '\n\n' +
-        'Student\'s new message: ' + text }
-  ];
-}
-
-/* ============================================================
-   Adaptive: proposal discussion thread (via LLMService)
+   Adaptive: proposal discussion thread (via LLMService).
+   The thread lives directly below the proposal card and is the
+   only conversational surface besides the selection bubble.
    ============================================================ */
 const PROPOSAL_DISCUSS_SYSTEM =
   'You are the adaptive layer of "Teachly". The student is discussing a change proposal for their workspace. ' +
@@ -1682,43 +1610,56 @@ const PROPOSAL_DISCUSS_SYSTEM =
   'EXACTLY the single line [__REVISED__] at the very end of your reply. If they only ask questions, reply normally ' +
   'without that line.\n\n[INTENT: __PROPOSAL_DISCUSS__]';
 
+const Discuss = { messages: [] };   // transient per-session transcript (adaptive state persists; an open thread does not)
+
+function discussRender(){
+  const t = $('pdThread');
+  t.innerHTML = Discuss.messages.map(m => {
+    if (m.role === 'user')     return '<div class="dmsg user">' + esc(m.content) + '</div>';
+    if (m.role === 'error')    return '<div class="dmsg err">Error: ' + esc(m.content) + '</div>';
+    return '<div class="dmsg bot">' + renderMarkdown(m.content) + '</div>';
+  }).join('');
+  t.scrollTop = t.scrollHeight;
+}
+
 async function sendDiscuss(_text){
-  const input = $('dockInput');
+  const input = $('pdInput');
   const text = (_text ?? input.value).trim();
   if (!text) return;
   input.value = '';
-  App.chat.push({ role:'user', content:text });
-  renderChat(); saveChat();
+  Discuss.messages.push({ role:'user', content:text });
+  discussRender();
   const proposal = Adaptive.proposal;
   const summary = proposal ? proposal.changes.map(c =>
     (c.op === 'mission' ? '[mission change] ' : '[lesson ' + c.lessonId + '] ') +
     (c.heading || '') + ': ' + (c.body || '').replace(/\n+/g, ' ').slice(0, 140)).join('\n') : '';
+  const recent = Discuss.messages.slice(-8).map(m => m.role + ': ' + String(m.content).slice(0,600)).join('\n');
   let ans;
   try {
     ans = await LLMService.chat([
       { role:'system', content: PROPOSAL_DISCUSS_SYSTEM },
-      { role:'user', content: 'WORKSPACE: ' + (App.ws ? App.ws.title : '') + '\nPROPOSAL:\n' + summary + '\n\nSTUDENT: ' + text }
+      { role:'user', content: 'WORKSPACE: ' + (App.ws ? App.ws.title : '') + '\nPROPOSAL:\n' + summary + '\n\nRecent discussion:\n' + recent + '\n\nSTUDENT: ' + text }
     ], { temperature: 0.6 });
   } catch(err){
-    App.chat.push({ role:'error', content: err.message });
-    renderChat(); saveChat();
+    Discuss.messages.push({ role:'error', content: err.message });
+    discussRender();
     return;
   }
   const revised = ans.includes('__REVISED__');
   const clean = ans.replace(/\[__REVISED__\]/g, '').trim();
-  App.chat.push({ role:'assistant', content: clean });
+  Discuss.messages.push({ role:'assistant', content: clean });
   if (revised){
     try {
-      Adaptive.proposal = await LLMService.reviseProposal(proposal, App.chat.slice(-8));
+      Adaptive.proposal = await LLMService.reviseProposal(proposal, Discuss.messages.slice(-8));
       Adaptive.revision++;
       Adaptive.state = 'proposal';
       renderProposalCard();
-      toast('Proposal revised after discussion — review and decide.');
+      toast('Proposal adjusted after discussion — review and decide.');
     } catch(err){
-      App.chat.push({ role:'assistant', content: 'I could not revise the proposal right now: ' + err.message });
+      Discuss.messages.push({ role:'assistant', content: 'I could not revise the proposal right now: ' + err.message });
     }
   }
-  renderChat(); saveChat(); adaptiveSave();
+  discussRender(); adaptiveSave();
 }
 
 /* ============================================================
@@ -1824,7 +1765,7 @@ document.addEventListener('mouseup', (e) => {
   if (!anchor || !anchor.parentElement) return;
   const inMain = anchor.parentElement.closest('#mainArea');
   const inLesson = anchor.parentElement.closest('#lessonContent');
-  const inBubbleOrDock = anchor.parentElement.closest('#bubble, #dock');
+  const inBubbleOrDock = anchor.parentElement.closest('#bubble');
   if (!inMain || inBubbleOrDock || !inLesson) return;
   if (Bubble.open && Bubble.el.contains(e.target)) return;
   const rect = sel.getRangeAt(0).getBoundingClientRect();
@@ -1865,10 +1806,10 @@ async function askSelection(){
     App.bubble.lastQuestion = q;
     App.bubble.lastSelection = bubble.selText;
 
-    // Option C: bubble shows ONLY this latest exchange; full history goes to the dock.
+    // Option C: bubble shows ONLY this latest exchange; full history goes to the sidebar section.
     Bubble.showAnswer(ans);
 
-    // accumulate in the docked Selection Q&A section (never pruned)
+    // accumulate in the sidebar Selection Q&A history (never pruned)
     App.selQA.push({
       ts: now(),
       lessonId: App.bubble.lessonId,
@@ -1926,41 +1867,6 @@ function insertNoteFromBubble(){
 }
 
 /* ============================================================
-   Docked chat flow (normal follow-ups + adaptive discussion)
-   ============================================================ */
-async function sendFollowup(){
-  if (Adaptive.busy) return;
-  const input = $('dockInput');
-  const text = input.value.trim();
-  if (!text) return;
-  input.value = '';
-  App.chat.push({ role:'user', content:text });
-  renderChat(); saveChat();
-  const typing = document.createElement('div');
-  typing.className = 'dmsg bot';
-  typing.innerHTML = '<span class="spin" style="flex-shrink:0"></span> Teaching…';
-  $('dockBody').appendChild(typing); typing.scrollIntoView({block:'end'});
-  try {
-    const ans = await LLMService.chat(followupMessages(text), { temperature: 0.6 });
-    typing.remove();
-    App.chat.push({ role:'assistant', content: ans });
-    renderChat(); saveChat();
-  } catch(err){
-    typing.remove();
-    App.chat.push({ role:'error', content: err.message });
-    renderChat(); saveChat();
-  }
-}
-
-function handleDockSend(){
-  if (Adaptive.busy) return;
-  const text = $('dockInput').value.trim();
-  if (!text) return;
-  if (Adaptive.state === 'discussing'){ sendDiscuss(text); return; }
-  sendFollowup();
-}
-
-/* ============================================================
    Main flow: first message -> generate workspace
    ============================================================ */
 async function onFirstMessage(){
@@ -1969,23 +1875,16 @@ async function onFirstMessage(){
   $('startSendBtn').disabled = true;
   $('startMsg').disabled = true;
 
-  App.chat.push({ role:'user', content: topic });
-  App.phrase = topic;
-  saveChat();
-
   const finishSetup = showSetup(topic);
   try {
     const ws = await generateWorkspace(topic);   // -> LLMService
     App.ws = { ...ws, notes: [], topic, createdAt: now() };
     App.currentLessonId = App.ws.lessons[0].id;
     finishSetup();
-    App.chat.push({ role:'assistant', content: 'Workspace ready — **' + App.ws.title + '** is set up (' + App.ws.lessons.length + ' lessons). Ask follow-ups here, or highlight any text in a lesson for selection Q&A.' });
-    saveWorkspace(); saveChat();
+    saveWorkspace();
     showWorkspace();
   } catch(err){
     finishSetup();
-    App.chat.pop();   // drop the user message so a retry starts clean
-    saveChat();
     showStart();
     errToast('Workspace generation failed: ' + err.message + ' — check Settings or enable Demo mode.');
   } finally {
@@ -2083,8 +1982,10 @@ function init(){
   }
   LLMService.configure(App.settings);
 
-  const savedChat = Storage.get(KEYS.chat, null);
-  if (Array.isArray(savedChat)) App.chat = savedChat;
+  // v1.2 migration: the dock chat was removed — purge its orphaned localStorage key
+  // ('tp_chat_v1') so no stale chat data lingers. Selection Q&A history
+  // ('tp_selqa_v1'), workspace, settings and adaptive state are unaffected.
+  if (localStorage.getItem('tp_chat_v1') !== null) localStorage.removeItem('tp_chat_v1');
 
   const savedSelQA = Storage.get(KEYS.selqa, null);
   if (Array.isArray(savedSelQA)) App.selQA = savedSelQA;
@@ -2131,21 +2032,19 @@ function init(){
     finally { $('pingBtn').disabled = false; $('pingBtn').textContent = 'Test connection'; LLMService.configure(App.settings); }
   });
 
-  $('dockHead').addEventListener('click', e => { if (e.target.closest('#dockToggle')) return; setDockOpen(!$('dock').classList.contains('open')); });
-  $('dockToggle').addEventListener('click', () => setDockOpen(!$('dock').classList.contains('open')));
-  $('dockSendBtn').addEventListener('click', handleDockSend);
-  $('dockInput').addEventListener('keydown', e => { if (e.key==='Enter'){ e.preventDefault(); handleDockSend(); } });
-  $('selQAToggle').addEventListener('click', () => {
-    $('selQAToggle').classList.toggle('open');
+  $('selqaToggle').addEventListener('click', () => {
+    $('selqaToggle').classList.toggle('open');
   });
+  $('pdSendBtn').addEventListener('click', () => sendDiscuss());
+  $('pdInput').addEventListener('keydown', e => { if (e.key==='Enter'){ e.preventDefault(); sendDiscuss(); } });
 
   $('newTopicBtn').addEventListener('click', () => {
-    if (!confirm('Start a new topic? This clears the current workspace, notes, chat and adaptive meter.')) return;
-    App.ws = null; App.chat = []; App.currentLessonId = null; App.selQA = []; App.bubble.lastAnswer = null;
+    if (!confirm('Start a new topic? This clears the current workspace, notes, Q&A history and adaptive meter.')) return;
+    App.ws = null; App.currentLessonId = null; App.selQA = []; App.bubble.lastAnswer = null; Discuss.messages = [];
     Adaptive.progress = 0; Adaptive.state = 'collecting'; Adaptive.proposal = null; Adaptive.revision = 0;
     Adaptive.busy = false; Adaptive.stop = false;
-    $('proposalCard').hidden = true; $('stepperOverlay').classList.remove('show');
-    Storage.del(KEYS.workspace); Storage.del(KEYS.chat); Storage.del(KEYS.selqa); Storage.del(KEYS.adaptive);
+    $('proposalWrap').hidden = true; $('stepperOverlay').classList.remove('show');
+    Storage.del(KEYS.workspace); Storage.del(KEYS.selqa); Storage.del(KEYS.adaptive);
     $('startMsg').value = '';
     showStart();
   });
@@ -2244,7 +2143,7 @@ function init(){
   $('bubAskBtn').addEventListener('click', askSelection);
   $('bubInsertBtn').addEventListener('click', insertNoteFromBubble);
   $('bubAgainBtn').addEventListener('click', () => {
-    // Option C: "New question" clears ONLY the bubble — the dock history keeps everything.
+    // Option C: "New question" clears ONLY the bubble — the sidebar history keeps everything.
     $('bubRes').classList.remove('on'); $('bubAns').innerHTML='';
     $('bubAskBtn').style.display=''; $('bubAskBtn').disabled=false; $('bubAskBtn').textContent='Ask';
     Bubble.resetAttachments(); $('bubQ').value=''; $('bubQ').focus();
@@ -2266,16 +2165,16 @@ function init(){
   $('pcDiscuss').addEventListener('click', () => {
     if (Adaptive.busy || !Adaptive.proposal) return;
     Adaptive.state = 'discussing';
-    renderProposalCard();
-    adaptiveSave();
-    if ($('dock').classList.contains('open') === false) setDockOpen(true);
-    App.chat.push({
+    $('proposalDiscuss').hidden = false;
+    Discuss.messages.push({
       role:'assistant',
       content:'**[Discussing the change proposal]** Tell me what you\'d like different about the proposed changes — ' +
               'scope, wording, or something to remove — or say “revise it” and I\'ll rework the proposal and re-present it.'
     });
-    renderChat(); saveChat();
-    $('dockInput').focus();
+    discussRender();
+    renderProposalCard();
+    adaptiveSave();
+    $('pdInput').focus();
     toast('Discussion thread opened — refine the proposal or decide.');
   });
   $('stepperStop').addEventListener('click', () => { Adaptive.stop = true; });
@@ -2286,7 +2185,7 @@ function init(){
 document.addEventListener('DOMContentLoaded', init);
 
 /* Expose a small debug/test surface (also used by automated checks). */
-window.TP = { LLMService, App, Adaptive, Bubble, PROVIDERS, renderMarkdown, esc, renderSelQA, openNote };
+window.TP = { LLMService, App, Adaptive, Bubble, Discuss, PROVIDERS, renderMarkdown, esc, renderSelQA, openNote };
 </script>
 </body>
 </html>
