@@ -349,6 +349,12 @@ textarea.input{resize:vertical; min-height:70px; line-height:1.5;}
 .pcList{list-style:none; padding:0; margin:0 0 4px; display:flex; flex-direction:column; gap:7px;}
 .pcList li{background:var(--panel2); border:1px solid var(--border2); border-radius:9px; padding:8px 10px; font-size:12px;}
 .pcList .cTarget{color:var(--accent); font-weight:700; display:block; font-size:12px;}
+.pcList .cOp{display:inline-block; font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:.05em;
+  color:var(--accent); border:1px solid rgba(122,162,247,.4); border-radius:4px; padding:0 6px; margin-right:6px; vertical-align:1px;}
+.pcList .cOp-remove{color:#f7768e; border-color:rgba(247,118,142,.45);}
+.pcList .cOp-rewrite{color:var(--warn); border-color:rgba(251,191,36,.45);}
+.pcList .cOp-restructure{color:#bb9af7; border-color:rgba(187,154,247,.45);}
+.pcList .cOp-mission{color:#9ece6a; border-color:rgba(158,206,106,.45);}
 .pcList .cSum{color:var(--prose); display:block; margin-top:2px; line-height:1.45;}
 .pcStatus{font-size:11.5px; color:var(--faint); margin:2px 0 10px;}
 .pcFoot{display:flex; gap:7px; justify-content:flex-end; margin-top:4px;}
@@ -387,6 +393,12 @@ textarea.input{resize:vertical; min-height:70px; line-height:1.5;}
 .stIdx{width:18px; height:18px; border-radius:50%; background:var(--accent-soft); color:var(--accent);
   display:flex; align-items:center; justify-content:center; font-weight:700; font-size:10.5px; flex-shrink:0;}
 .stTarget{flex:1; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:12px;}
+.stOp{font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--accent);
+  border:1px solid rgba(122,162,247,.4); border-radius:4px; padding:1px 6px; margin-right:8px; flex-shrink:0;}
+.stOp-remove{color:#f7768e; border-color:rgba(247,118,142,.45);}
+.stOp-rewrite{color:var(--warn); border-color:rgba(251,191,36,.45);}
+.stOp-restructure{color:#bb9af7; border-color:rgba(187,154,247,.45);}
+.stOp-mission{color:#9ece6a; border-color:rgba(158,206,106,.45);}
 .stChip{font-size:10px; font-weight:700; padding:2px 8px; border-radius:999px; text-transform:uppercase; letter-spacing:.04em; flex-shrink:0;}
 .st-queued{color:var(--faint); border:1px solid var(--border2); background:transparent;}
 .st-pending{color:var(--accent); border:1px solid rgba(122,162,247,.45); background:rgba(122,162,247,.1);}
@@ -758,8 +770,9 @@ const KEYS = {
          content items: {type:'text',text} | {type:'image_url',image_url:{url}}
        opts: { json?:boolean, temperature?:number }
      proposeChanges(ctx) -> Promise<{changes:[...], rationale}>   // adaptive
-     reviseProposal(proposal, messages) -> Promise<{...proposal}>
-     ping() -> Promise<string>
+         reviseProposal(proposal, messages) -> Promise<{...proposal}>
+         applyChange(ch, lesson) -> Promise<{body, content, missionOverwrite}>  // adaptive per-op transform
+         ping() -> Promise<string>
      isDemo() -> boolean
      source() -> 'demo' | 'openai'
      getConfig() -> {baseUrl, model, demo, provider}  (apiKey omitted)
@@ -944,7 +957,9 @@ const LLMService = (() => {
     };
   }
 
-  /* adaptive-workspace demo: build a change proposal from the real Q&A history */
+  /* adaptive-workspace demo: build a change proposal from the real Q&A history.
+     Demonstrates the FULL op set (add / rewrite / restructure / remove) so a
+     non-additive change is provable end-to-end without an API key. */
   function _demoProposal(ctx, revision){
     const selQA = (ctx && ctx.selQA) || [];
     const lessons = (ctx && ctx.workspace && ctx.workspace.lessons) || [];
@@ -958,8 +973,9 @@ const LLMService = (() => {
       const l1 = lessons.find(l => l.id === lid1) || lessons[0];
       const qs = selQA.filter(e => e.lessonId === lid1).map(e => e.question).filter(Boolean);
       const unique = [...new Set(qs)].slice(0, 3);
+      // ADD: a new section targeting the most-asked-about lesson
       changes.push({
-        id:'c1', op:'append', lessonId:lid1,
+        id:'c1', op:'add', lessonId:lid1, rationale:'Most of your questions land here — a dedicated section gives them a home.',
         heading:'What you keep asking about',
         body:'This section was added because you asked about the points below most often in your selection questions (' + c1 + ' question' + (c1 > 1 ? 's' : '') + '):\n\n' +
              unique.map(q => '- ' + q).join('\n') + '\n\n' + (rev ? rev.trim() : 'Go through each point, then paraphrase the whole lesson out loud.' + '')
@@ -968,10 +984,43 @@ const LLMService = (() => {
     if (ranked.length > 1){
       const [lid2, c2] = ranked[1];
       const l2 = lessons.find(l => l.id === lid2) || lessons[0];
+      // REWRITE: replace the first real `### heading` of the target lesson so the demo
+      // genuinely rewrites existing content (not just appends) and is verifiable by diff.
+      const heads = (l2 ? (l2.content.match(/^### (.+)$/gm) || []) : []).map(h => h.replace(/^###\s+/, '').trim());
+      const rwHeading = (heads.length ? heads[0] : 'Quick recall check');
       changes.push({
-        id:'c2', op:'append', lessonId:lid2,
-        heading:'Quick recall check',
-        body:'You asked ' + c2 + ' question' + (c2 > 1 ? 's' : '') + ' against this lesson — revisit them with the retrieval habit from the pitfalls lesson.' + (rev ? ' ' + rev.trim() : '')
+        id:'c2', op:'rewrite', lessonId:lid2, rationale:'You asked ' + c2 + ' question(s) here — replace the opening section to lead with those, not generic points.',
+        heading:rwHeading,
+        body:'Revised to lead with what you keep asking: you asked ' + c2 + ' question' + (c2 > 1 ? 's' : '') + ' against this lesson. ' +
+             'Use the retrieval habit from the pitfalls lesson: read once, close the tab, paraphrase from memory, then self-quiz.' + (rev ? ' ' + rev.trim() : '')
+      });
+    }
+    if (lessons.length > 1){
+      // RESTRUCTURE: pull the lesson that draws the most questions earlier in the running order
+      const first = lessons[0];
+      const lid1v = ranked.length ? ranked[0][0] : null;
+      const mover = lessons.find(l => l.id === lid1v);
+      if (mover && mover.id !== first.id){
+        changes.push({
+          id:'c' + (changes.length + 1), op:'restructure', lessonId:mover.id,
+          rationale:'Your questions cluster here, so it should come before the foundations lesson.',
+          heading:'Move this lesson up',
+          body:'Reorder: “' + mover.title + '” moves ahead of “' + first.title + '” so the material you keep asking about comes first.' + (rev ? ' ' + rev.trim() : '')
+        });
+      }
+    }
+    if (lessons.length >= 3){
+      // REMOVE: drop a redundant `### heading` section (the lesson's "summary" if it has one,
+      // else its last section) from the least-asked lesson — verifiable by a real content diff.
+      const least = [...lessons].reverse().find(l => !ranked.some(r => r[0] === l.id)) || lessons[lessons.length - 1];
+      const lheads = (least ? (least.content.match(/^### (.+)$/gm) || []) : []).map(h => h.replace(/^###\s+/, '').trim());
+      const sumH = lheads.find(h => /summary|recap|one.?minute|wrap.?up/i.test(h));
+      const rmHeading = (sumH || lheads[lheads.length - 1] || 'One-minute summary');
+      changes.push({
+        id:'c' + (changes.length + 1), op:'remove', lessonId:least.id,
+        rationale:'This section is redundant and rarely asked about — removing it cuts noise.',
+        heading:rmHeading,
+        body:'Remove the “' + rmHeading + '” section from “' + least.title + '” — it restates material already covered elsewhere.' + (rev ? ' ' + rev.trim() : '')
       });
     }
     // always include a mission-level change so the stepper has >= 2 steps, even with a single lesson of questions
@@ -981,7 +1030,7 @@ const LLMService = (() => {
     });
     return {
       changes,
-      rationale:'Derived from ' + selQA.length + ' selection Q&A' + (selQA.length === 1 ? '' : 's') + ' in this workspace.'
+      rationale:'Derived from ' + selQA.length + ' selection Q&A' + (selQA.length === 1 ? '' : 's') + ' in this workspace — add, rewrite, restructure, remove.'
     };
   }
 
@@ -1044,6 +1093,38 @@ const LLMService = (() => {
 
   }
 
+  /* adaptive: apply one change — produce the final body text for the affected
+     lesson/mission content. Demo mode returns the change's own body unchanged;
+     real mode calls the model to transform the lesson content per op. */
+  async function applyChange(ch, lesson){
+    if (cfg.demo) return { body: ch.body, content: null };
+    const guest = { title:'', content:'' };
+    const L = lesson || guest;
+    const prompt =
+      'You are the adaptive layer of "Teachly". Apply a single proposed change to the CURRENT lesson content below ' +
+      'and return the complete REVISED lesson markdown.\n' +
+      'Change (STRICT JSON): {"op":"add"|"rewrite"|"restructure"|"remove"|"mission", "lessonId":"..", ' +
+      '"heading":"exact ## heading of the target section, or the new heading for add (omit for mission)", ' +
+      '"body":"what to add / replace the section with, or a note for remove/restructure", "rationale":".."}\n' +
+      'Rules:\n- For op "add": insert a new "### <heading>" section before the final "**Try this:**" block (or at the end).\n' +
+      '- For op "rewrite": replace the section whose heading matches <heading> with "### <heading>\n\n<body>"; keep every other section byte-for-byte.\n' +
+      '- For op "remove": delete the section whose heading matches <heading> entirely; keep the rest.\n' +
+      '- For op "restructure": reorder the lesson\'s sections so that <body>\'s first-stated heading comes first; keep all content, only reorder.\n' +
+      '- For op "mission": return only the revised mission text (no lesson), as the full replacement.\n' +
+      'Return STRICT JSON only: {"content":"full revised lesson markdown", "missionOverwrite":false OR "string"}\n' +
+      '[INTENT: __APPLY__]';
+    const content = await _realChat([
+      { role:'system', content: prompt },
+      { role:'user', content: 'CHANGE: ' + JSON.stringify(ch) + '\n\nCURRENT LESSON CONTENT:\n' + L.content }
+    ], { json:true, temperature: 0.4 });
+    let data = null;
+    try { data = JSON.parse(content); } catch(e){
+      const m = content.match(/\{[\s\S]*\}/); if (m){ try { data = JSON.parse(m[0]); } catch(e2){} }
+    }
+    if (!data || typeof data.content !== 'string' || !data.content.trim()) throw new Error('Model did not return revised content.');
+    return { body: data.content, content: data.content, missionOverwrite: data.missionOverwrite || null };
+  }
+
   /* ---------------- public seam ---------------- */
   async function chat(messages, opts = {}){
     if (cfg.demo) return _demoChat(messages, opts);
@@ -1056,13 +1137,23 @@ const LLMService = (() => {
     const prompt =
       'You are the adaptive layer of "Teachly". Based on the student\'s selection Q&A history, propose 2-4 concrete ' +
       'changes to the teaching workspace that match what they keep asking about.\n' +
+      'You may ADD, REWRITE, RESTRUCTURE, or REMOVE existing content — make the workspace genuinely adaptive, not just longer.\n' +
       'Return STRICT JSON only, no prose, matching EXACTLY:\n' +
-      '{"changes":[{"id":"c1","op":"append"|"mission","lessonId":"l2 (omit for mission)","heading":"## short heading (omit for mission)","body":"markdown body"}],"rationale":"one sentence"}\n' +
-      'Rules: op "append" adds a section to an existing lesson; op "mission" rewrites/extend the mission text. ' +
+      '{"changes":[{"id":"c1","op":"add"|"rewrite"|"restructure"|"remove"|"mission","lessonId":"l2 (omit for mission)",' +
+      '"heading":"## short heading, or the EXACT existing section heading to rewrite/remove",' +
+      '"body":"markdown body (what to add or replace with; for restructure, the target heading to move first)",' +
+      '"rationale":"one sentence explaining the op"}],"rationale":"one sentence summary"}\n' +
+      'Rules:\n' +
+      '- op "add": append a new section to an existing lesson.\n' +
+      '- op "rewrite": replace an existing section whose heading you quote exactly in <heading>.\n' +
+      '- op "remove": delete a redundant existing section (quote its exact <heading>). Ensure at least one section stays.\n' +
+      '- op "restructure": move the section named in <heading> to the top of its lesson by ordering it first in body.\n' +
+      '- op "mission": rewrite/extend the mission text (omit lessonId).\n' +
+      'Do not use op "append" — use "add". Prefer mixed ops: at least one of rewrite/restructure/remove when the workspace is redundant.\n' +
       '[INTENT: __PROPOSAL__]';
     const content = await _realChat([
       { role:'system', content: prompt },
-      { role:'user', content: 'WORKSPACE: ' + JSON.stringify(ctx.workspace ? { title:ctx.workspace.title, mission:ctx.workspace.mission, lessons:ctx.workspace.lessons.map(l => ({id:l.id, title:l.title})) } : {}) + '\n\nSELECTION Q&A HISTORY:\n' + JSON.stringify(ctx.selQA || []) }
+      { role:'user', content: 'WORKSPACE: ' + JSON.stringify(ctx.workspace ? { title:ctx.workspace.title, mission:ctx.workspace.mission, lessons:ctx.workspace.lessons.map(l => ({id:l.id, title:l.title, content:l.content})) } : {}) + '\n\nSELECTION Q&A HISTORY:\n' + JSON.stringify(ctx.selQA || []) }
     ], { json:true, temperature: 0.6 });
     let data = null;
     try { data = JSON.parse(content); } catch(e){
@@ -1077,7 +1168,8 @@ const LLMService = (() => {
     if (cfg.demo) return _demoRevise(proposal, messages || []);
     const prompt =
       'You are the adaptive layer of "Teachly". The student discussed the change proposal below and gave feedback. ' +
-      'Return a REVISED proposal as STRICT JSON matching exactly: {"changes":[{"id","op","lessonId","heading","body"}]} — same shape as the input. ' +
+      'Return a REVISED proposal as STRICT JSON matching exactly: {"changes":[{"id","op","lessonId","heading","body","rationale"}]} — same shape as the input. ' +
+      'Preserve op semantics (add / rewrite / restructure / remove / mission); adjust targets, headings, and bodies to honor the feedback. ' +
       '[INTENT: __PROPOSAL_REVISE__]';
     const content = await _realChat([
       { role:'system', content: prompt },
@@ -1100,7 +1192,7 @@ const LLMService = (() => {
     return 'Connected — model replied: ' + reply.trim();
   }
 
-  return { configure, chat, proposeChanges, reviseProposal, ping, isDemo, source, getConfig };
+  return { configure, chat, proposeChanges, reviseProposal, applyChange, ping, isDemo, source, getConfig };
 })();
 
 /* ============================================================
@@ -1178,6 +1270,10 @@ function persistAll(){ saveSettings(); if (App.ws) saveWorkspace(); saveSelQA();
    dock is gone; the bubble is the sole question surface).
    Threshold constants live here so weighting can change later
    without touching UI code.
+   Ops: add (new section), rewrite (replace section by heading),
+   restructure (reorder lesson), remove (delete section by heading),
+   mission (append to mission text). Abort/Stop restores the exact
+   pre-overlay snapshot so partial applies never corrupt state.
    ============================================================ */
 const Adaptive = {
   stepPct: 25,                 // progress per selection-bubble question (threshold after 4 questions)
@@ -1289,7 +1385,8 @@ function renderProposalCard(){
   $('pcRevBadge').hidden = Adaptive.revision === 0;
   const list = $('pcList');
   list.innerHTML = Adaptive.proposal.changes.map(c =>
-    '<li><span class="cTarget">' + esc(c.op === 'mission' ? 'Mission' : lessonLabel(c.lessonId)) + ' — ' + esc(c.heading || 'statement') + '</span>' +
+    '<li><span class="cOp cOp-' + esc(c.op || 'add') + '">' + esc(c.op || 'add') + '</span>' +
+    '<span class="cTarget">' + esc(c.op === 'mission' ? 'Mission' : lessonLabel(c.lessonId)) + ' — ' + esc(c.heading || 'statement') + '</span>' +
     '<span class="cSum">' + esc((c.body || '').replace(/\n+/g, ' ').slice(0, 160)) + '</span></li>').join('');
   const status = $('pcStatus');
   if (Adaptive.state === 'discussing'){
@@ -1306,18 +1403,118 @@ function renderStepper(){
   const list = $('stepperList');
   list.innerHTML = Adaptive.steps.map((s, i) =>
     '<div class="stRow"><span class="stIdx">' + (i + 1) + '</span>' +
+    '<span class="stOp stOp-' + esc(s.change.op || 'add') + '">' + esc(s.change.op || 'add') + '</span>' +
     '<span class="stTarget">' + esc(lessonLabel(s.change.lessonId)) + '</span>' +
     '<span class="stChip st-' + s.status + '">' + s.status + '</span></div>').join('');
+}
+
+/* ---- change application (full op set: add / rewrite / restructure / remove / mission) ---- */
+
+/* Locate the `### heading` section in a lesson's markdown content.
+   Returns {start,end} char offsets of the section INCLUDING its heading line,
+   or null when the heading is not found. */
+function findSectionRange(content, heading){
+  if (!content || !heading) return null;
+  const lines = content.split('\n');
+  const norm = (s) => s.replace(/[##\s]+$/g, '').trim().toLowerCase();
+  const target = norm(heading);
+  let start = -1;
+  for (let i = 0; i < lines.length; i++){
+    const m = lines[i].match(/^(#{2,3})\s+(.+)$/);
+    if (m && norm(m[2]) === target){ start = i; break; }
+  }
+  if (start < 0) return null;
+  let end = lines.length;
+  for (let i = start + 1; i < lines.length; i++){
+    if (/^#{2,3}\s+/.test(lines[i])){ end = i; break; }
+  }
+  let offset = 0, startOff = -1, endOff = -1;
+  for (let i = 0; i < lines.length; i++){
+    if (i === start) startOff = offset;
+    offset += lines[i].length + 1;
+    if (i === end - 1){ endOff = offset; break; }
+  }
+  if (endOff < 0) endOff = content.length;
+  return { start:startOff, end:endOff };
 }
 
 function applyChange(ch){
   if (ch.op === 'mission'){
     App.ws.mission = (App.ws.mission || '') + '\n\n' + ch.body;
-    return;
+    return true;
   }
   const L = App.ws.lessons.find(l => l.id === ch.lessonId) || App.ws.lessons.find(l => l.id === App.currentLessonId);
-  if (!L) return;
-  L.content = L.content + '\n\n### ' + (ch.heading || 'Added section') + '\n\n' + ch.body;
+  if (!L) return false;
+
+  if (ch.op === 'add' || ch.op === 'append'){          // 'append' kept for backward compatibility with older saved proposals
+    L.content = L.content + '\n\n### ' + (ch.heading || 'Added section') + '\n\n' + ch.body;
+    return true;
+  }
+  if (ch.op === 'rewrite'){
+    // Replace the section named by ch.heading; if absent, append as a new section.
+    const range = findSectionRange(L.content, ch.heading);
+    if (range){
+      L.content = L.content.slice(0, range.start) + '### ' + ch.heading + '\n\n' + ch.body + '\n' + L.content.slice(range.end);
+    } else {
+      L.content = L.content + '\n\n### ' + (ch.heading || 'Revised section') + '\n\n' + ch.body;
+    }
+    return true;
+  }
+  if (ch.op === 'remove'){
+    // Remove the section named by ch.heading; no-op (still counts as applied) when absent.
+    const range = findSectionRange(L.content, ch.heading);
+    if (range) L.content = L.content.slice(0, range.start) + L.content.slice(range.end);
+    return true;
+  }
+  if (ch.op === 'restructure'){
+    // Move the lesson one position earlier in the running order (outline + lesson list).
+    const idx = App.ws.lessons.indexOf(L);
+    if (idx > 0){
+      App.ws.lessons.splice(idx, 1);
+      App.ws.lessons.splice(idx - 1, 0, L);
+      App.ws.outline = App.ws.lessons.map(l => ({ id:l.id, title:l.title }));
+      return true;
+    }
+    return false;   // already first — nothing to move
+  }
+  return false;     // unknown op — treated as failure by the stepper
+}
+
+/* Deep snapshot of workspace content, for abort/restore mid-apply. */
+function snapshotWorkspace(){
+  return JSON.stringify({ mission:App.ws.mission, outline:App.ws.outline, lessons:App.ws.lessons, notes:App.ws.notes });
+}
+function restoreWorkspace(snap){
+  const s = JSON.parse(snap);
+  App.ws.mission = s.mission;
+  App.ws.outline = s.outline;
+  App.ws.lessons = s.lessons;
+  App.ws.notes = s.notes;
+}
+
+/* Route a single change to the correct applicator.
+   Demo mode: deterministic structural application (per-op).
+   Real mode: LLMService.applyChange transforms the affected content (returns the
+   full revised lesson markdown, or mission overwrite text), then that result is
+   committed. Returns true on success, false if the op cannot be satisfied. */
+async function applyAdaptiveChange(ch){
+  if (LLMService.isDemo()) return applyChange(ch);
+  const L = ch.op === 'mission' ? null : (App.ws.lessons.find(l => l.id === ch.lessonId) || App.ws.lessons.find(l => l.id === App.currentLessonId));
+  if (ch.op !== 'mission' && !L) return false;
+  let res;
+  try { res = await LLMService.applyChange(ch, L || { content: App.ws.mission }); }
+  catch(e){ toast('Apply failed: ' + e.message); return false; }
+  if (ch.op === 'mission'){
+    const m = (res && res.missionOverwrite) ? String(res.missionOverwrite)
+             : (res && res.content && typeof res.content === 'string' && res.content.trim() ? String(res.content) : null);
+    App.ws.mission = m ? m : (App.ws.mission + '\n\n' + ch.body);
+    return true;
+  }
+  if (res && res.content && typeof res.content === 'string' && res.content.trim()){
+    L.content = res.content;
+    return true;
+  }
+  return false;
 }
 
 async function runStepper(){
@@ -1325,33 +1522,58 @@ async function runStepper(){
   Adaptive.stop = false;
   Adaptive.state = 'applying';
   Adaptive.steps = Adaptive.proposal.changes.map(ch => ({ change: ch, status: 'queued' }));
+  const snapshot = snapshotWorkspace();          // pre-overlay snapshot for abort/restore
   $('stepperOverlay').classList.add('show');
   renderStepper();
   renderMeter();
   adaptiveSave();
 
-  let completed = 0, stopped = 0;
+  let completed = 0, stopped = 0, aborted = false;
   for (let i = 0; i < Adaptive.steps.length; i++){
     const step = Adaptive.steps[i];
     if (Adaptive.stop){
       for (let j = i; j < Adaptive.steps.length; j++){ if (Adaptive.steps[j].status === 'queued') Adaptive.steps[j].status = 'stopped'; }
       stopped = Adaptive.steps.length - i;
+      aborted = true;
       break;
     }
     step.status = 'pending'; renderStepper();
     await sleep(520);
-    if (Adaptive.stop){ step.status = 'stopped'; stopped = 1; break; }
+    if (Adaptive.stop){
+      for (let j = i; j < Adaptive.steps.length; j++){ if (Adaptive.steps[j].status === 'queued') Adaptive.steps[j].status = 'stopped'; }
+      step.status = 'stopped'; stopped = 1; aborted = true; break;
+    }
     step.status = 'changing'; renderStepper();
-    applyChange(step.change);            // live update beneath the translucent overlay
+    let ok = false;
+    try { ok = await applyAdaptiveChange(step.change); }   // live update beneath the translucent overlay
+    catch(e){ toast('Change failed: ' + e.message); ok = false; }
+    if (!ok){ aborted = true; break; }                // abort mid-apply on unknown op / missing lesson
     saveWorkspace();
     if (step.change.op !== 'mission') renderLesson();
     else { $('sbMission').textContent = App.ws.mission || ''; }
+    if (step.change.op === 'restructure'){
+      // outline order changed — re-render the sidebar/history so positions reflect the new order
+      renderSidebar();
+    }
     renderMeter();
     await sleep(900);
+    if (Adaptive.stop){ step.status = 'stopped'; stopped = 1; aborted = true; break; }
     step.status = 'completed'; renderStepper();
     completed++;
     Adaptive.counters.applied++;
     saveWorkspace();
+  }
+
+  // abort (Stop or failed apply) restores the exact pre-overlay state so a partial
+  // application can never corrupt the workspace.
+  if (aborted){
+    restoreWorkspace(snapshot);
+    Adaptive.steps.forEach(s => { if (s.status !== 'stopped') s.status = 'stopped'; });
+    renderStepper();
+    saveWorkspace();
+    renderLesson();
+    $('sbMission').textContent = App.ws.mission || '';
+    renderSidebar();
   }
 
   await sleep(500);
@@ -1368,9 +1590,13 @@ async function runStepper(){
   $('proposalWrap').hidden = true;
   renderMeter();
   adaptiveSave();
-  toast('Applied ' + completed + ' change' + (completed === 1 ? '' : 's') + ' to the workspace.' +
-        (stopped ? ' Stopped with ' + stopped + ' remaining queued.' : '') +
-        ' The meter resets and keeps learning from here.');
+  if (aborted){
+    toast('Apply stopped midway — the workspace was restored to its state just before this apply, so nothing is corrupted. Meter resets and keeps learning.');
+  } else {
+    toast('Applied ' + completed + ' change' + (completed === 1 ? '' : 's') + ' to the workspace.' +
+          (stopped ? ' Stopped with ' + stopped + ' remaining queued.' : '') +
+          ' The meter resets and keeps learning from here.');
+  }
 }
 
 /* ============================================================
@@ -1631,7 +1857,7 @@ async function sendDiscuss(_text){
   discussRender();
   const proposal = Adaptive.proposal;
   const summary = proposal ? proposal.changes.map(c =>
-    (c.op === 'mission' ? '[mission change] ' : '[lesson ' + c.lessonId + '] ') +
+    (c.op === 'mission' ? '[mission change] ' : '[' + (c.op || 'add') + ' lesson ' + c.lessonId + '] ') +
     (c.heading || '') + ': ' + (c.body || '').replace(/\n+/g, ' ').slice(0, 140)).join('\n') : '';
   const recent = Discuss.messages.slice(-8).map(m => m.role + ': ' + String(m.content).slice(0,600)).join('\n');
   let ans;

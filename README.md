@@ -99,9 +99,9 @@ workspace, history, notes or adaptive progress is lost.
 - **Links are not fetched** — pasted links are sent to the model as references; the page never fetches their content (browser CORS + scope). Stubbed per the spec.
 - **Images inline via data URLs** — up to 2 per question; large images bloat `localStorage` persistence only if inserted as notes (the note stores text, not the image — images are request-only).
 - **Markdown renderer is minimal** (headings, bold/italic, code, fenced code, lists, blockquotes, links, hr) — no tables/HTML passthrough by design (XSS-safe, everything is escaped).
-- **Adaptive proposal is demo-simulated** — in Demo mode `proposeChanges()`/`reviseProposal()` derive changes from your real question history locally; with a live model they become ordinary LLM calls (JSON in/out). The demo proposal always appends sections / extends the mission — no in-place rewriting yet (Card 4 addresses real-LLM, non-additive changes).
+- **Adaptive proposal supports the FULL op set** — `add` (new section), `rewrite` (replace an existing section by its exact `### heading`), `restructure` (reorder a lesson earlier in the running order), `remove` (delete a redundant section by heading), and `mission` (extend the mission text). In Demo mode the demo proposal deliberately yields a **mixed op mix** (add/rewrite/restructure/remove/mission) so a non-additive change is demonstrable end-to-end without a key. With a live model these become ordinary LLM calls (JSON in/out; see “Cost per adaptive cycle”).
 - **Discuss thread is per-session** — the open thread's transcript does not survive a reload (the adaptive decision state does; a mid-discussion reload resumes at the proposal card).
-- **Mid-apply reload** — the stepper run itself isn't resumable: if you refresh mid-apply, already-applied changes stay in the workspace and the meter resumes cleanly at 0.
+- **Mid-apply reload** — the stepper run itself isn't resumable: if you refresh mid-apply, already-applied changes stay in the workspace and the meter resumes cleanly at 0. **Stop or a failed apply aborts** the run and restores the exact pre-overlay snapshot, so a partial application can never leave the workspace corrupted.
 - **Key lives client-side** in `localStorage` — fine for a local prototype; move to a backend before sharing.
 - **Real API from `file://`** — Chrome/Edge allow it; some browsers or providers (CORS) may block it — use the static-server option or a provider with open CORS.
 - Workspace is **generated in one call** (single curriculum JSON); a staged generator (mission → resources → lessons) is a possible v2.
@@ -117,6 +117,7 @@ workspace, history, notes or adaptive progress is lost.
    ├─ chat(messages, {json?, temperature?}) → Promise<string>   ← THE SEAM
    ├─ proposeChanges({workspace, selQA}) → Promise<{changes[], rationale}>   ← adaptive
    ├─ reviseProposal(proposal, messages) → Promise<{...proposal}>            ← adaptive discussion
+   ├─ applyChange(change, lesson) → Promise<{body, content, missionOverwrite}> ← adaptive per-op transform
    ├─ configure({baseUrl, model, apiKey, demo, provider})
    ├─ ping() / isDemo() / source() / getConfig()
    └─ two interchangeable implementations behind it:
@@ -143,11 +144,36 @@ message arrays / context objects:
 Then the in-page `LLMService` internals become thin `fetch('/api/llm/…', …)` calls — **zero UI changes**. The same
 swap point can also take over persistence (workspace/history/adaptive) when multi-device sync is needed.
 
+## Adaptive op types & cost per cycle
+
+**Operation types** (each change in a proposal carries one of these, shown as a chip on the proposal card and in the stepper):
+
+| op | effect | real-mode calls |
+|---|---|---|
+| `add` | append a new `### section` to a lesson | 1 × `applyChange` (model writes the new body) |
+| `rewrite` | replace an existing `### section` (matched by its exact heading) | 1 × `applyChange` (model returns revised content) |
+| `restructure` | move a lesson one position earlier in the running order | 1 × `applyChange` (model returns the reordered outline/content) |
+| `remove` | delete a redundant `### section` (matched by its exact heading) | 1 × `applyChange` (model returns content minus the section) |
+| `mission` | append an adaptive note to the mission text | 1 × `applyChange` when model rewrites the mission |
+
+**One full adaptive cycle** (meter 0% → 100%, four selection-bubble questions) costs the following in **real** mode:
+
+- 1 × `proposeChanges` — the proposal-generation call (sends workspace + full Q&A history; receives the structured change list).
+- 1 × `applyChange` **per change** being applied — the per-op content transform for the affected lesson/mission (skip if the proposal is Rejected).
+- **only if discussed…** N × `chat` (discuss turns) + 1 × `reviseProposal` if the proposal is revised before applying.
+- The meter itself costs nothing extra — it only counts bubble Q&A locally.
+
+Demo mode makes **zero network calls**: `proposeChanges`/`reviseProposal`/`applyChange` are all simulated locally. So with a full proposal of ~4 changes the real-key steady state is **≈ 1 propose + 4 apply** calls per cycle,
+plus discussion/revision only when the student engages the Discuss thread.
+
+Each `applyChange` call re-sends the current lesson content (or mission) and expects the full revised markdown back — so its
+token cost scales with lesson size, not the proposal length. Keep lessons short to keep per-cycle cost low.
+
 ## Files
 
 | File | What |
 |---|---|
-| `index.html` | The entire app (~112 KB: CSS + HTML + JS inline) |
+| `index.html` | The entire app (~125 KB: CSS + HTML + JS inline) |
 | `README.md` | This file |
 
 ## Tested (v1.2)
