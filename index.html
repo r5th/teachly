@@ -302,9 +302,12 @@ textarea.input{resize:vertical; min-height:70px; line-height:1.5;}
   padding:5px 8px; font-size:12px; max-width:170px; outline:none; cursor:pointer;
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
 #refPickerBtn:hover{color:var(--text); border-color:var(--accent);}
-#refPickerPanel{position:absolute; bottom:calc(100% + 6px); left:0; z-index:30; width:280px; max-width:78vw;
+#refPickerPanel{position:fixed; left:0; top:0; z-index:30; width:280px; max-width:78vw;
   background:var(--panel); border:1px solid var(--border2); border-radius:10px; box-shadow:var(--shadow);
   padding:6px; display:flex; flex-direction:column; gap:6px;}
+/* Placement is JS-driven (placeRefPicker): opens BELOW the button by default,
+   flips above only when there is no room below, clamped to the viewport —
+   never overlays the bubble header / close button. */
 #refPickerSearch{background:var(--panel2); border:1px solid var(--border2); color:var(--text); border-radius:7px;
   padding:6px 8px; font-size:12px; outline:none; width:100%;}
 #refPickerSearch:focus{border-color:var(--accent);}
@@ -2264,6 +2267,7 @@ const Bubble = {
     // Reference picker (Card 3, topic 2 signed-off design): full untruncated
     // lesson titles; search input appears only when lesson count > 5.
     App.bubble.refId = null;
+    this.closeRefPicker();   // F1: no stale open-state leaks across bubble sessions
     this.refreshRefPicker();
 
     // Signed-off design (Card 3, topic 1): rect-aware flip placement.
@@ -2322,10 +2326,43 @@ const Bubble = {
     if (panel.hidden){
       this.refreshRefPicker();
       panel.hidden = false;
+      this.placeRefPicker();
       if (!$('refPickerSearch').hidden) $('refPickerSearch').focus();
     } else {
       panel.hidden = true;
     }
+  },
+  /* F2: JS-driven placement. Open BELOW the button when there is room (the
+     button sits in the bubble body, below the header, so "below" can never
+     overlay the header/close button); flip ABOVE only as a viewport fallback.
+     Clamp horizontally to the viewport with an 8px margin. */
+  REF_GAP: 6,
+  REF_EDGE: 8,
+  placeRefPicker(){
+    const panel = $('refPickerPanel');
+    const btn = $('refPickerBtn');
+    const r = btn.getBoundingClientRect();
+    const bw = panel.offsetWidth, bh = panel.offsetHeight;
+    const vw = document.documentElement.clientWidth, vh = window.innerHeight;
+    const hdr = document.getElementById('bubHead').getBoundingClientRect();
+    let top = r.bottom + this.REF_GAP;
+    if (top + bh > vh - this.REF_EDGE){
+      const above = r.top - this.REF_GAP - bh;
+      // Flip above ONLY if it also clears the bubble header/close button; the
+      // never-overlap-header invariant dominates over the flip preference.
+      if (above >= this.REF_EDGE && above >= hdr.bottom + this.REF_GAP){ top = above; }
+      else {
+        // Neither orientation fits cleanly (short viewports): clamp INSIDE the
+        // viewport and never overlap the bubble header / close button.
+        const floor = vh - this.REF_EDGE - bh;
+        const ceil = hdr.bottom + this.REF_GAP;
+        top = Math.max(ceil, Math.min(top, floor));
+      }
+    }
+    let left = r.left;
+    left = Math.max(this.REF_EDGE, Math.min(left, vw - this.REF_EDGE - bw));
+    panel.style.top = Math.round(top) + 'px';
+    panel.style.left = Math.round(left) + 'px';
   },
   renderImageThumbs(){
     const box = $('bubImages');
@@ -2381,6 +2418,7 @@ const Bubble = {
     return true;
   },
   close(){
+    this.closeRefPicker();   // F1: picker never outlives the bubble
     this.open = false;
     this.range = null;
     this.el.hidden = true;
@@ -2451,6 +2489,8 @@ const Bubble = {
       if (live && (live.width || live.height)) this.place(live);
       else this.place();
     } catch(e){ this.place(); }
+    // F2: keep the open reference picker anchored to its button too.
+    if (!$('refPickerPanel').hidden) this.placeRefPicker();
   }
 };
 
