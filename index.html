@@ -1,0 +1,1483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Teachly — Self-Building Teaching Workspace</title>
+<style>
+/* ============================================================
+   Teachly prototype v1 — single self-contained file.
+   All CSS/JS inline. No build step, no CDNs, fully offline
+   except the user's own LLM endpoint.
+   ============================================================ */
+:root{
+  --bg:#0b0e14; --panel:#12161f; --panel2:#171d2a; --panel3:#1d2434;
+  --border:#242c3d; --border2:#2e3850;
+  --text:#e6e9f1; --muted:#8b94a8; --faint:#5b6478;
+  --accent:#7aa2f7; --accent2:#5d7fe0; --accent-soft:rgba(122,162,247,.12);
+  --good:#4ade80; --bad:#f87171; --warn:#fbbf24;
+  --prose:#d6dbe6;
+  --radius:12px; --radius-sm:8px;
+  --shadow:0 10px 30px rgba(0,0,0,.45);
+  --dock-h:46px; --dock-open-h:300px;
+  --font-ui:"Segoe UI",system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif;
+  --font-prose:Georgia,"Times New Roman",serif;
+}
+*{box-sizing:border-box; margin:0; padding:0;}
+html,body{height:100%;}
+body{
+  background:var(--bg); color:var(--text); font-family:var(--font-ui);
+  font-size:15px; line-height:1.55; overflow:hidden;
+}
+button{font-family:inherit; cursor:pointer;}
+input,textarea,select{font-family:inherit; font-size:14px; color:var(--text);}
+::selection{background:var(--accent-soft);}
+::-webkit-scrollbar{width:9px; height:9px;}
+::-webkit-scrollbar-thumb{background:var(--border2); border-radius:5px;}
+::-webkit-scrollbar-track{background:transparent;}
+
+/* ---------------- generic controls ---------------- */
+.btn{
+  border:1px solid var(--border2); background:var(--panel2); color:var(--text);
+  padding:8px 14px; border-radius:var(--radius-sm); font-size:13.5px; font-weight:500;
+  transition:background .15s,border-color .15s,transform .05s;
+}
+.btn:hover{background:var(--panel3); border-color:#3a4660;}
+.btn:active{transform:translateY(1px);}
+.btn-primary{
+  background:linear-gradient(180deg,var(--accent),var(--accent2)); color:#0b0e14;
+  border:1px solid transparent; font-weight:600;
+}
+.btn-primary:hover{filter:brightness(1.08); background:linear-gradient(180deg,var(--accent),var(--accent2));}
+.btn:disabled{opacity:.45; cursor:not-allowed; transform:none;}
+.btn-ghost{background:transparent; border-color:transparent; color:var(--muted);}
+.btn-ghost:hover{background:var(--panel2); color:var(--text);}
+.icon-btn{
+  background:transparent; border:none; color:var(--muted); font-size:15px;
+  width:30px; height:30px; border-radius:7px; display:inline-flex; align-items:center; justify-content:center;
+}
+.icon-btn:hover{background:var(--panel3); color:var(--text);}
+.field{display:flex; flex-direction:column; gap:5px; margin-bottom:14px;}
+.field label{font-size:12px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.04em;}
+.input,select.input{
+  background:var(--panel2); border:1px solid var(--border2); color:var(--text);
+  padding:9px 12px; border-radius:var(--radius-sm); outline:none; width:100%;
+}
+.input:focus{border-color:var(--accent);}
+textarea.input{resize:vertical; min-height:70px; line-height:1.5;}
+.hint{font-size:12px; color:var(--faint); line-height:1.5;}
+
+/* ---------------- layout / states ---------------- */
+#app{position:relative; height:100%; display:flex; flex-direction:column;}
+.view{position:absolute; inset:0; display:flex; overflow:hidden;}
+.view[hidden]{display:none !important;}
+
+/* ============ START STATE: full-screen chat ============ */
+#startView{align-items:center; justify-content:center; background:
+  radial-gradient(1000px 500px at 70% -10%, rgba(122,162,247,.10), transparent 60%),
+  radial-gradient(800px 400px at 10% 110%, rgba(77,171,247,.07), transparent 60%), var(--bg);}
+#startInner{width:min(720px,92vw); display:flex; flex-direction:column; align-items:center; gap:22px;}
+#logoRow{display:flex; align-items:center; gap:10px;}
+#logoMark{width:42px; height:42px; border-radius:12px; display:flex; align-items:center; justify-content:center;
+  background:linear-gradient(135deg,var(--accent),var(--accent2)); color:#0b0e14; font-size:22px; font-weight:800;}
+#logoRow h1{font-size:26px; font-weight:700; letter-spacing:-.01em;}
+#startSub{color:var(--muted); text-align:center; max-width:520px; font-size:14.5px;}
+#startChipRow{display:flex; gap:8px; align-items:center; flex-wrap:wrap; justify-content:center;}
+.chip{
+  font-size:11.5px; font-weight:600; padding:4px 10px; border-radius:999px;
+  border:1px solid var(--border2); color:var(--muted); background:var(--panel);
+  display:inline-flex; gap:6px; align-items:center;
+}
+.chip.demo{color:var(--warn); border-color:rgba(251,191,36,.35); background:rgba(251,191,36,.08); cursor:pointer;}
+.chip.live{color:var(--good); border-color:rgba(74,222,128,.35); background:rgba(74,222,128,.07);}
+#startChatBox{width:100%; background:var(--panel); border:1px solid var(--border); border-radius:18px; padding:14px; box-shadow:var(--shadow);}
+#startMsg{width:100%; background:transparent; border:none; outline:none; resize:none;
+  height:60px; font-size:16px; padding:6px 4px; line-height:1.5;}
+#startMsg::placeholder{color:var(--faint);}
+#startBar{display:flex; align-items:center; gap:8px; justify-content:flex-end; padding-top:10px; border-top:1px solid var(--border);}
+#startHintSteps{display:flex; gap:10px; width:100%; margin-top:8px;}
+.stepCard{flex:1; background:var(--panel); border:1px solid var(--border); border-radius:var(--radius);
+  padding:12px 14px; font-size:12px; color:var(--muted); display:flex; gap:10px; align-items:flex-start;}
+.stepNum{width:20px; height:20px; border-radius:50%; background:var(--accent-soft); color:var(--accent);
+  display:flex; align-items:center; justify-content:center; font-weight:700; font-size:11px; flex-shrink:0;}
+#sourceBadgeWrap{position:absolute; top:16px; right:18px; display:flex; gap:8px;}
+#topLeftChip{position:absolute; top:16px; left:18px;}
+#errorToast{
+  position:fixed; top:18px; left:50%; transform:translateX(-50%) translateY(-120%);
+  background:rgba(220,60,60,.12); border:1px solid rgba(248,113,113,.5); color:#fca5a5;
+  padding:10px 18px; border-radius:10px; font-size:13.5px; max-width:560px; z-index:200;
+  transition:transform .25s ease; box-shadow:var(--shadow);
+}
+#errorToast.show{transform:translateX(-50%) translateY(0);}
+
+/* ============ SETUP PROGRESS ============ */
+#setupView{align-items:center; justify-content:center; background:var(--bg); flex-direction:column; gap:26px;}
+#setupCard{width:min(460px,90vw); background:var(--panel); border:1px solid var(--border);
+  border-radius:18px; padding:28px; box-shadow:var(--shadow);}
+#setupTitle{font-size:17px; font-weight:600; margin-bottom:4px; display:flex; align-items:center; gap:10px;}
+#setupTopic{color:var(--muted); font-size:13px; margin-bottom:18px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.stepRow{display:flex; align-items:center; gap:12px; padding:9px 0; color:var(--muted); font-size:14px;}
+.stepDot{width:18px; height:18px; border-radius:50%; border:2px solid var(--border2); flex-shrink:0;
+  display:flex; align-items:center; justify-content:center; font-size:10px; transition:all .2s;}
+.stepRow.active{color:var(--text);}
+.stepRow.active .stepDot{border-color:var(--accent); box-shadow:0 0 0 4px var(--accent-soft);}
+.stepRow.done{color:var(--good);}
+.stepRow.done .stepDot{border-color:var(--good); background:var(--good); color:#0b0e14;}
+.spin{width:16px; height:16px; border:2px solid var(--border2); border-top-color:var(--accent);
+  border-radius:50%; animation:spin .8s linear infinite; margin-left:auto;}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+/* ============ WORKSPACE ============ */
+#workspaceView{flex-direction:row;}
+#sidebar{width:264px; min-width:264px; background:var(--panel); border-right:1px solid var(--border);
+  display:flex; flex-direction:column; overflow-y:auto;}
+.sbSection{padding:14px 16px; border-bottom:1px solid var(--border);}
+.sbLabel{font-size:11px; font-weight:700; color:var(--faint); text-transform:uppercase; letter-spacing:.07em; margin-bottom:8px;}
+.sbMission{font-size:12.5px; color:var(--prose); line-height:1.55;}
+.outlineItem{
+  display:flex; gap:10px; padding:8px 10px; border-radius:var(--radius-sm); cursor:pointer;
+  font-size:13.5px; color:var(--muted); align-items:baseline; border:1px solid transparent;
+}
+.outlineItem:hover{background:var(--panel2); color:var(--text);}
+.outlineItem.current{background:var(--accent-soft); color:var(--text); border-color:rgba(122,162,247,.3);}
+.outlineNum{font-size:11px; font-weight:700; color:var(--accent); flex-shrink:0; width:20px;}
+.sbFoot{margin-top:auto; padding:14px 16px; display:flex; gap:8px; border-top:1px solid var(--border);}
+#notesCount{color:var(--accent); font-weight:600;}
+#mainArea{flex:1; overflow-y:auto; position:relative; scroll-behavior:smooth; padding-bottom:calc(var(--dock-h) + 96px);}
+#app.dock-open #mainArea{padding-bottom:calc(var(--dock-open-h) + 28px);}
+#lessonWrap{max-width:820px; margin:0 auto; padding:40px 44px 60px;}
+#lessonNav{display:flex; justify-content:space-between; margin-top:44px; padding-top:20px; border-top:1px solid var(--border);}
+#lessonTitle{font-size:15px; color:var(--muted); margin-bottom:6px; font-weight:600; text-transform:uppercase; letter-spacing:.06em;}
+#lessonH1{font-size:30px; line-height:1.2; font-weight:700; letter-spacing:-.015em; margin-bottom:26px;}
+
+/* ---- lesson prose (markdown render) ---- */
+.prose{font-family:var(--font-prose); color:var(--prose); font-size:16px; line-height:1.7;}
+.prose h2{font-family:var(--font-ui); font-size:19px; font-weight:700; color:var(--text); margin:30px 0 10px; letter-spacing:-.01em;}
+.prose h3{font-family:var(--font-ui); font-size:15.5px; font-weight:600; color:var(--text); margin:22px 0 8px;}
+.prose p{margin:0 0 14px;}
+.prose ul,.prose ol{margin:0 0 16px; padding-left:24px;}
+.prose li{margin-bottom:6px;}
+.prose strong{color:#f3f5fa;}
+.prose em{color:#c8cfe0;}
+.prose blockquote{
+  border-left:3px solid var(--accent); background:var(--panel2); border-radius:0 var(--radius-sm) var(--radius-sm) 0;
+  padding:12px 16px; margin:0 0 16px; font-family:var(--font-ui); font-size:14px; color:var(--muted);
+}
+.prose code{font-family:Consolas,Menlo,monospace; font-size:13.5px; background:var(--panel3);
+  padding:1.5px 6px; border-radius:5px; color:#a8c7fa;}
+.prose pre{background:#0a0d13; border:1px solid var(--border); border-radius:var(--radius-sm);
+  padding:14px 16px; overflow-x:auto; margin:0 0 16px;}
+.prose pre code{background:transparent; padding:0; color:#c8d6f0;}
+.prose hr{border:none; border-top:1px solid var(--border); margin:26px 0;}
+.prose a{color:var(--accent); text-decoration:none;}
+.prose a:hover{text-decoration:underline;}
+.prose .trythis{
+  background:rgba(74,222,128,.06); border:1px solid rgba(74,222,128,.25);
+  border-radius:var(--radius); padding:14px 16px; margin:20px 0; font-family:var(--font-ui);
+}
+.prose .trythis b{color:var(--good);}
+.quizBlock{background:var(--panel2); border:1px solid var(--border); border-radius:var(--radius); padding:18px; margin:22px 0;}
+.quizQ{font-family:var(--font-ui); font-size:14.5px; font-weight:600; margin-bottom:12px;}
+.quizOpt{
+  display:flex; gap:10px; align-items:flex-start; width:100%; text-align:left;
+  background:var(--panel); border:1px solid var(--border2); color:var(--prose);
+  border-radius:var(--radius-sm); padding:9px 12px; margin-bottom:7px; font-size:13.5px; font-family:var(--font-ui);
+  transition:border-color .15s,background .15s;
+}
+.quizOpt:hover{border-color:var(--accent);}
+.quizOpt.correct{border-color:var(--good); background:rgba(74,222,128,.1);}
+.quizOpt.wrong{border-color:var(--bad); background:rgba(248,113,113,.08); opacity:.75;}
+.quizOpt .qLtr{font-weight:700; color:var(--accent); flex-shrink:0;}
+.quizOpt.correct .qLtr{color:var(--good);}
+.quizOpt.wrong .qLtr{color:var(--bad);}
+.quizReveal{margin-top:10px; font-size:12.5px; color:var(--muted); font-family:var(--font-ui);}
+.quizReveal code{font-size:12px;}
+
+/* ---- Q&A notes inside lesson ---- */
+.notesSection{margin-top:34px;}
+.notesSection h3{font-family:var(--font-ui); font-size:15px; font-weight:700; color:var(--text); margin-bottom:10px; display:flex; gap:8px; align-items:center;}
+.noteCard{
+  background:var(--panel2); border:1px solid var(--border); border-left:3px solid var(--accent);
+  border-radius:var(--radius-sm); padding:14px 16px; margin-bottom:12px;
+}
+.noteQuote{font-size:12.5px; color:var(--faint); border-left:2px solid var(--border2);
+  padding-left:10px; margin-bottom:10px; font-style:italic;}
+.noteQ{font-family:var(--font-ui); font-size:13.5px; font-weight:600; margin-bottom:8px;}
+.noteA{font-family:var(--font-ui); font-size:13.5px; color:var(--prose); line-height:1.6;}
+.noteA p{margin-bottom:8px;}
+.noteMeta{display:flex; justify-content:space-between; align-items:center; margin-top:10px; font-size:11.5px; color:var(--faint);}
+
+/* ============ DOCKED CHAT ============ */
+#dock{
+  position:fixed; left:264px; right:0; bottom:0; z-index:60;
+  background:var(--panel); border-top:1px solid var(--border); border-left:1px solid var(--border);
+  height:var(--dock-h); display:flex; flex-direction:column; transition:height .25s ease;
+  box-shadow:0 -6px 24px rgba(0,0,0,.35);
+}
+#dock.open{height:var(--dock-open-h);}
+#dockHead{
+  height:var(--dock-h); min-height:var(--dock-h); display:flex; align-items:center; gap:10px;
+  padding:0 14px; cursor:pointer; border-bottom:1px solid transparent; user-select:none;
+}
+#dock.open #dockHead{border-bottom-color:var(--border);}
+#dockPill{width:8px; height:8px; border-radius:50%; background:var(--good); flex-shrink:0;}
+#dockTitle{font-size:13.5px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+#dockTitle small{color:var(--faint); font-weight:500; margin-left:8px;}
+#dockBody{flex:1; overflow-y:auto; padding:14px 16px 6px; display:none; flex-direction:column; gap:10px;}
+#dock.open #dockBody{display:flex;}
+.dmsg{max-width:78%; padding:9px 13px; border-radius:12px; font-size:13.5px; line-height:1.55; white-space:pre-wrap; word-wrap:break-word;}
+.dmsg.user{align-self:flex-end; background:var(--accent-soft); border:1px solid rgba(122,162,247,.35); color:#e8efff;}
+.dmsg.bot{align-self:flex-start; background:var(--panel2); border:1px solid var(--border); color:var(--prose);}
+.dmsg.bot p{margin-bottom:8px;} .dmsg.bot p:last-child{margin-bottom:0;}
+.dmsg.bot ul,.dmsg.bot ol{padding-left:20px; margin-bottom:8px;}
+.dmsg.bot code{font-family:Consolas,monospace; font-size:12px; background:var(--panel3); padding:1px 5px; border-radius:4px;}
+.dmsg.err{background:rgba(248,113,113,.08); border-color:rgba(248,113,113,.4); color:#fca5a5;}
+#dockInputRow{display:none; align-items:center; gap:8px; padding:10px 14px 14px; border-top:1px solid var(--border);}
+#dock.open #dockInputRow{display:flex;}
+#dockInput{
+  flex:1; background:var(--panel2); border:1px solid var(--border2); color:var(--text);
+  border-radius:10px; padding:10px 14px; outline:none; font-size:14px;
+}
+#dockInput:focus{border-color:var(--accent);}
+#dockSend{padding:10px 18px;}
+
+/* ============ SELECTION BUBBLE ============ */
+#bubble{
+  position:fixed; z-index:120; width:400px; max-width:calc(100vw - 24px);
+  background:var(--panel); border:1px solid var(--border2); border-radius:16px;
+  box-shadow:0 16px 48px rgba(0,0,0,.55); overflow:hidden;
+  font-family:var(--font-ui);
+}
+#bubHead{display:flex; align-items:center; gap:8px; padding:11px 14px; border-bottom:1px solid var(--border);
+  background:var(--panel2); font-size:13px; font-weight:600;}
+#bubHead .hbub{width:7px; height:7px; border-radius:50%; background:var(--accent); flex-shrink:0;}
+#bubBody{padding:13px 14px 14px; max-height:52vh; overflow-y:auto;}
+#selPreview{
+  font-size:12.5px; color:var(--muted); background:var(--panel2); border:1px solid var(--border);
+  border-left:3px solid var(--accent); border-radius:var(--radius-sm); padding:9px 11px;
+  margin-bottom:11px; max-height:60px; overflow:hidden; font-style:italic;
+}
+#selPreview b{color:var(--accent); font-style:normal;}
+#bubQ{
+  width:100%; background:var(--panel2); border:1px solid var(--border2); border-radius:10px;
+  padding:9px 12px; outline:none; resize:none; min-height:52px; font-size:13.5px; line-height:1.5;
+}
+#bubQ:focus{border-color:var(--accent);}
+#bubAttachRow{display:flex; gap:6px; align-items:center; margin-top:9px; flex-wrap:wrap;}
+.attBtn{
+  background:var(--panel2); border:1px solid var(--border2); color:var(--muted);
+  border-radius:8px; padding:5px 10px; font-size:12px; display:inline-flex; gap:5px; align-items:center;
+}
+.attBtn:hover{color:var(--text); border-color:var(--accent);}
+#bubImages{display:flex; gap:6px; flex-wrap:wrap; margin-top:8px;}
+.thumbWrap{position:relative; width:52px; height:52px; border-radius:8px; overflow:hidden; border:1px solid var(--border2);}
+.thumbWrap img{width:100%; height:100%; object-fit:cover;}
+.thumbX{position:absolute; top:2px; right:2px; width:16px; height:16px; border-radius:50%;
+  background:rgba(0,0,0,.7); color:#fff; font-size:10px; border:none; line-height:1;}
+#bubLinks{margin-top:8px; display:flex; flex-direction:column; gap:5px;}
+.linkRow{display:flex; gap:6px; align-items:center; font-size:12px; color:var(--muted);
+  background:var(--panel2); border:1px solid var(--border); border-radius:7px; padding:5px 9px;}
+.linkRow .u{flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+#bubRefRow{margin-top:9px; display:flex; flex-direction:column; gap:5px;}
+#bubAskRow{display:flex; gap:8px; margin-top:11px; align-items:center;}
+#bubAskBtn{flex:1; padding:9px;}
+#bubRes{margin-top:11px; display:none;}
+#bubRes.on{display:block;}
+#bubThink{display:flex; gap:9px; align-items:center; color:var(--muted); font-size:13px; padding:6px 0;}
+#bubAns{background:var(--panel2); border:1px solid var(--border); border-radius:10px; padding:12px 14px;
+  font-size:13.5px; color:var(--prose); line-height:1.6; font-family:var(--font-ui);}
+#bubAns p{margin-bottom:8px;} #bubAns p:last-child{margin-bottom:0;}
+#bubAns ul,#bubAns ol{padding-left:20px; margin-bottom:8px;}
+#bubAns code{font-family:Consolas,monospace; font-size:12px; background:var(--panel3); padding:1px 5px; border-radius:4px;}
+#bubResBtns{display:flex; gap:7px; margin-top:10px;}
+#bubInsertBtn{flex:1;}
+.bubMini{padding:6px 10px; font-size:12px;}
+
+/* ============ SETTINGS MODAL ============ */
+#modalOverlay{
+  position:fixed; inset:0; background:rgba(4,6,10,.66); z-index:150; display:none;
+  align-items:center; justify-content:center; backdrop-filter:blur(3px);
+}
+#modalOverlay.show{display:flex;}
+#settingsCard{width:min(520px,92vw); max-height:88vh; overflow-y:auto; background:var(--panel);
+  border:1px solid var(--border2); border-radius:18px; padding:24px; box-shadow:var(--shadow);}
+#settingsCard h2{font-size:17px; margin-bottom:4px;}
+#settingsCard .sub{color:var(--muted); font-size:13px; margin-bottom:18px;}
+.presetRow{display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap;}
+.demoToggle{display:flex; align-items:center; gap:10px; background:var(--panel2);
+  border:1px solid var(--border2); border-radius:var(--radius-sm); padding:11px 13px; margin-bottom:6px; cursor:pointer;}
+.demoToggle input{accent-color:var(--warn); width:16px; height:16px; cursor:pointer;}
+.demoToggle .dt{flex:1;}
+.demoToggle .dt b{font-size:14px; display:block;}
+.demoToggle .dt span{font-size:12px; color:var(--faint);}
+.keyWrap{position:relative;}
+#apiKey{width:100%; padding-right:64px;}
+#keyToggleBtn{position:absolute; right:6px; top:50%; transform:translateY(-50%);
+  background:var(--panel3); border:1px solid var(--border2); color:var(--muted); font-size:11px;
+  padding:4px 8px; border-radius:6px;}
+#settingsFoot{display:flex; gap:8px; justify-content:flex-end; margin-top:18px;}
+
+/* toast */
+#toast{position:fixed; bottom:calc(var(--dock-h) + 16px); right:18px; z-index:300;
+  background:var(--panel3); border:1px solid var(--border2); color:var(--text);
+  padding:10px 16px; border-radius:10px; font-size:13px; box-shadow:var(--shadow);
+  opacity:0; transform:translateY(8px); transition:all .25s; pointer-events:none; max-width:340px;}
+#toast.show{opacity:1; transform:translateY(0);}
+
+@media (max-width:760px){
+  #sidebar{display:none;}  /* v1: desktop-first; sidebar hidden on narrow screens */
+  #dock{left:0;}
+  #lessonWrap{padding:24px 20px 60px;}
+  #lessonH1{font-size:24px;}
+  #bubble{width:calc(100vw - 20px);}
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ================= START STATE (full-screen chat) ================= -->
+  <div id="startView" class="view">
+    <div id="topLeftChip" class="chip" id="sourceBadgeStart">…</div>
+    <div id="sourceBadgeWrap">
+      <button class="btn btn-ghost" id="openSettingsBtnTop" title="Settings">⚙️ Settings</button>
+    </div>
+    <div id="startInner">
+      <div id="logoRow">
+        <div id="logoMark">T</div>
+        <h1>Teachly</h1>
+      </div>
+      <p id="startSub">Tell me what you want to learn. I'll build you a teaching workspace — mission, outline and interactive lessons — and stay docked below to answer follow-ups.</p>
+      <div id="startChipRow">
+        <span class="chip" id="demoModeChip" title="Click to toggle">🧪 Demo mode: ON</span>
+        <span class="chip" id="modelChip">Model: —</span>
+      </div>
+      <div id="startChatBox">
+        <textarea id="startMsg" placeholder="What should I teach you? e.g. “Introduction to Bayesian statistics”, “How neural networks learn”, “Spanish for travel”…"></textarea>
+        <div id="startBar">
+          <button class="btn" id="startSettingsBtn">⚙️</button>
+          <button class="btn btn-primary" id="startSendBtn">Build my workspace →</button>
+        </div>
+      </div>
+      <div id="startHintSteps">
+        <div class="stepCard"><span class="stepNum">1</span> Type a topic and send — the chat docks to the bottom while I build the workspace.</div>
+        <div class="stepCard"><span class="stepNum">2</span> Highlight any sentence in a lesson → ask about it, attach images &amp; links.</div>
+        <div class="stepCard"><span class="stepNum">3</span> Ask follow-ups in the docked chat. Everything auto-saves locally.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= SETUP PROGRESS ================= -->
+  <div id="setupView" class="view" hidden>
+    <div id="setupCard">
+      <div id="setupTitle">Setting up your workspace <span class="spin"></span></div>
+      <div id="setupTopic"></div>
+      <div id="setupSteps"></div>
+    </div>
+  </div>
+
+  <!-- ================= WORKSPACE ================= -->
+  <div id="workspaceView" class="view" hidden>
+    <aside id="sidebar">
+      <div class="sbSection">
+        <div class="sbLabel">Mission</div>
+        <div class="sbMission" id="sbMission"></div>
+      </div>
+      <div class="sbSection">
+        <div class="sbLabel">Outline</div>
+        <div id="sbOutline"></div>
+      </div>
+      <div class="sbSection">
+        <div class="sbLabel">Selection Q&amp;A — <span id="notesCount">0 notes</span></div>
+        <div class="hint" style="margin-top:4px">Select any text in a lesson to ask about it.</div>
+      </div>
+      <div class="sbFoot">
+        <button class="btn" style="flex:1" id="newTopicBtn">＋ New topic</button>
+        <button class="btn" id="openSettingsBtn2" title="Settings">⚙️</button>
+      </div>
+    </aside>
+    <main id="mainArea">
+      <div id="lessonWrap">
+        <div id="lessonTitle"></div>
+        <h1 id="lessonH1"></h1>
+        <div id="lessonContent" class="prose"></div>
+        <div id="lessonNav">
+          <button class="btn" id="prevLessonBtn">← Previous</button>
+          <button class="btn" id="nextLessonBtn">Next →</button>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- ================= DOCKED CHAT ================= -->
+  <div id="dock" hidden>
+    <div id="dockHead" title="Toggle chat">
+      <span id="dockPill"></span>
+      <span id="dockTitle">Teaching Assistant<small id="dockModel"></small></span>
+      <span style="flex:1"></span>
+      <button class="icon-btn" id="dockToggle" title="Expand / collapse">▴</button>
+    </div>
+    <div id="dockBody"></div>
+    <div id="dockInputRow">
+      <input id="dockInput" placeholder="Follow-up question… (Enter to send)" autocomplete="off">
+      <button class="btn btn-primary" id="dockSendBtn">Send</button>
+    </div>
+  </div>
+
+  <!-- ================= SELECTION BUBBLE ================= -->
+  <div id="bubble" hidden>
+    <div id="bubHead"><span class="hbub"></span> Ask about selection
+      <span style="flex:1"></span>
+      <button class="icon-btn" id="bubClose" title="Close (Esc)">✕</button>
+    </div>
+    <div id="bubBody">
+      <div id="selPreview">“<span id="selText"></span>”</div>
+      <textarea id="bubQ" placeholder="Ask a question about the selection…"></textarea>
+      <div id="bubAttachRow">
+        <button class="attBtn" id="bubImgBtn">🖼 Image</button>
+        <button class="attBtn" id="bubLinkBtn">🔗 Link</button>
+        <select id="bubRefSel" class="input" style="width:auto; padding:5px 8px; font-size:12px"></select>
+        <input type="file" id="bubFileInput" accept="image/*" multiple hidden>
+      </div>
+      <div id="bubImages"></div>
+      <div id="bubLinks"></div>
+      <div id="bubAskRow">
+        <button class="btn btn-primary" id="bubAskBtn">Ask ✦</button>
+      </div>
+      <div id="bubRes">
+        <div id="bubThink"><span class="spin"></span> Teaching assistant is thinking…</div>
+        <div id="bubAns"></div>
+        <div id="bubResBtns">
+          <button class="btn btn-primary bubMini" id="bubInsertBtn">📥 Insert into workspace</button>
+          <button class="btn bubMini" id="bubAgainBtn">New question</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= SETTINGS MODAL ================= -->
+  <div id="modalOverlay">
+    <div id="settingsCard">
+      <h2>⚙️ LLM Settings</h2>
+      <p class="sub">Your API key stays in this browser's <code>localStorage</code> — it is never sent anywhere except the endpoint below. For production, swap the in-page <code>LLMService</code> for a backend (see README).</p>
+
+      <div class="presetRow">
+        <button class="btn" id="presetOpenAI">OpenAI</button>
+        <button class="btn" id="presetOpenRouter">OpenRouter</button>
+      </div>
+
+      <div class="field" id="fDemo">
+        <label>Mode</label>
+        <div class="demoToggle" id="demoToggleBtn">
+          <input type="checkbox" id="demoChk">
+          <div class="dt"><b>Demo mode (no API key needed)</b><span>Simulates LLM responses locally so you can try the full flow offline. Disable this to use your own model.</span></div>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Base URL (OpenAI-compatible)</label>
+        <input class="input" id="baseUrl" placeholder="https://api.openai.com/v1" spellcheck="false">
+        <div class="hint">OpenAI: <code>https://api.openai.com/v1</code> · OpenRouter: <code>https://openrouter.ai/api/v1</code> · any OpenAI-compatible endpoint works.</div>
+      </div>
+      <div class="field">
+        <label>Model</label>
+        <input class="input" id="model" placeholder="gpt-4o-mini" spellcheck="false">
+      </div>
+      <div class="field">
+        <label>API key</label>
+        <div class="keyWrap">
+          <input class="input" id="apiKey" type="password" placeholder="sk-…" spellcheck="false" autocomplete="off">
+          <button id="keyToggleBtn">show</button>
+        </div>
+        <div class="hint">Supports OpenAI and OpenRouter keys. Vision (image attachments) requires a vision-capable model, e.g. <code>gpt-4o-mini</code>, <code>openrouter/auto</code>.</div>
+      </div>
+      <div id="settingsFoot">
+        <button class="btn" id="pingBtn">Test connection</button>
+        <span style="flex:1"></span>
+        <button class="btn" id="settingsCancel">Cancel</button>
+        <button class="btn btn-primary" id="settingsSave">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="errorToast"></div>
+  <div id="toast"></div>
+</div>
+
+<script>
+'use strict';
+/* ============================================================
+   Teachly prototype v1 — application logic.
+   Architecture: UI code ONLY talks to `TP.LLMService`. A future
+   backend swap implements the same interface (see README §Backend).
+   ============================================================ */
+
+/* ---------------- tiny helpers ---------------- */
+const $  = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const debounce = (fn, ms) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
+let toastTimer;
+function toast(msg){ const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 3200); }
+function errToast(msg){ const t = $('errorToast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 6000); }
+const now = () => new Date().toISOString();
+
+/* ---------------- persistence ---------------- */
+const Storage = {
+  get(key, def){ try { const v = localStorage.getItem(key); return v == null ? def : JSON.parse(v); } catch(e){ return def; } },
+  set(key, val){ try { localStorage.setItem(key, JSON.stringify(val)); } catch(e){ console.warn('storage save failed', e); } },
+  del(key){ try { localStorage.removeItem(key); } catch(e){} }
+};
+const KEYS = { settings:'tp_settings_v1', workspace:'tp_workspace_v1', chat:'tp_chat_v1' };
+
+/* ============================================================
+   LLMService — THE SEAM.
+   Every LLM call in this app goes through this module. It has two
+   implementations behind one interface: 'demo' (local simulation)
+   and 'openai' (OpenAI/OpenRouter-compatible REST). A future
+   backend (key-holder + persistence server) replaces the internals
+   of `chat()` without any UI change.
+   ------------------------------------------------------------
+   Interface:
+     configure({baseUrl, model, apiKey, demo}) -> void
+     chat(messages, opts) -> Promise<string>     // text reply
+       messages: [{role:'system'|'user'|'assistant', content: string|array}]
+         content array items: {type:'text',text} | {type:'image_url',image_url:{url}}
+       opts: { json?:boolean — request strict JSON, temperature?:number }
+     isDemo() -> boolean
+     source() -> 'demo' | 'openai'
+     getConfig() -> {baseUrl, model, demo}   (apiKey intentionally omitted)
+   All fetch/headers/endpoints live here and nowhere else.
+   ============================================================ */
+const LLMService = (() => {
+  const DEFAULT_CFG = { baseUrl:'https://api.openai.com/v1', model:'gpt-4o-mini', apiKey:'', demo:true };
+  let cfg = { ...DEFAULT_CFG };
+
+  // demo-side memory: remembers the topic across demo turns so follow-ups feel coherent
+  let demoCtx = { topic:'' };
+
+  function configure(next){
+    cfg = { ...DEFAULT_CFG, ...(next || {}) };
+    if (cfg.demo) { cfg.apiKey = ''; }
+  }
+  const isDemo   = () => !!cfg.demo;
+  const source   = () => (cfg.demo ? 'demo' : 'openai');
+  const getConfig= () => ({ baseUrl: cfg.baseUrl, model: cfg.model, demo: cfg.demo });
+
+  /* ---------------- real (OpenAI-compatible REST) ---------------- */
+  async function _realChat(messages, opts = {}){
+    if (!cfg.apiKey)  throw new Error('No API key set. Open ⚙️ Settings → add your key, or enable Demo mode.');
+    if (!cfg.baseUrl) throw new Error('No base URL set (OpenAI-compatible endpoint).');
+    if (!cfg.model)   throw new Error('No model set.');
+    const url = cfg.baseUrl.replace(/\/+$/, '') + '/chat/completions';
+    const body = {
+      model: cfg.model,
+      messages,
+      temperature: opts.temperature ?? 0.7,
+      stream: false
+    };
+    if (opts.json) body.response_format = { type:'json_object' };
+    const res = await fetch(url, {
+      method:'POST',
+      headers: { 'Content-Type':'application/json', 'Authorization':'Bearer ' + cfg.apiKey },
+      body: JSON.stringify(body)
+    });
+    if (!res.ok){
+      let detail = '';
+      try { const j = await res.json(); detail = (j && (j.error?.message || j.message)) || ''; } catch(e){}
+      // some OpenAI-compatible providers don't support response_format — retry without it once
+      if (opts.json && /response_format|json.?object/i.test(detail)){
+        delete body.response_format;
+        const res2 = await fetch(url, {
+          method:'POST',
+          headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer ' + cfg.apiKey },
+          body: JSON.stringify(body)
+        });
+        if (res2.ok){ const d2 = await res2.json(); return d2.choices?.[0]?.message?.content ?? ''; }
+        try { const j = await res2.json(); detail = (j && (j.error?.message || j.message)) || detail; } catch(e){}
+      }
+      throw new Error('LLM request failed (' + res.status + '): ' + detail);
+    }
+    const data = await res.json();
+    return data.choices?.[0]?.message?.content ?? '';
+  }
+
+  /* ---------------- demo (local simulation) ---------------- */
+  function _lastUserText(messages){
+    for (let i = messages.length - 1; i >= 0; i--){
+      const m = messages[i];
+      if (m.role !== 'user') continue;
+      if (typeof m.content === 'string') return m.content;
+      if (Array.isArray(m.content)){
+        return m.content.filter(p => p.type === 'text').map(p => p.text).join('\n');
+      }
+    }
+    return '';
+  }
+  function _attachInfo(messages){
+    let imgs = 0, links = 0;
+    for (const m of messages){
+      if (!Array.isArray(m.content)) continue;
+      for (const p of m.content){
+        if (p.type === 'image_url') imgs++;
+        if (typeof p.text === 'string' && /LINKS:/.test(p.text)){ links = (p.text.match(/https?:\/\/\S+/g) || []).length; }
+      }
+    }
+    return { imgs, links };
+  }
+
+  function _demoCurriculumJson(topic){
+    const t = topic.trim() || 'this topic';
+    const T = t.charAt(0).toUpperCase() + t.slice(1);
+    const lessons = [
+      { id:'l1', title:'Foundations — what ' + t + ' really is',
+        content:
+          '## Why ' + t + ' matters\n\n' +
+          T + ' shows up more than most people realize. Once you have a clear mental model, ' +
+          'you stop memorizing fragments and start predicting — which is exactly the kind of durable ' +
+          'understanding this course is built to give you.\n\n' +
+          '### A working definition\n\n' +
+          'Put plainly: **' + t + '** is about understanding how its pieces fit together, what the ' +
+          'core rules are, and how to apply them to situations you have not seen before. ' +
+          'Hold on to that — every later lesson connects back to it.\n\n' +
+          '> **Mission connection:** every concept you meet from here is a tool for that goal, not a fact to memorize.\n\n' +
+          '### One-minute summary\n\n' +
+          '- It has a small set of core principles.\n' +
+          '- Those principles combine to produce everything else.\n' +
+          '- Fluency comes from practice, not from reading harder.\n\n' +
+          '**Try this:** before moving on, explain "' + t + '" out loud in one sentence, in your own words. ' +
+          'If you stumble, re-read the definition above — that stumble is good practice, not failure.'
+      },
+      { id:'l2', title:'Core concepts & mental models',
+        content:
+          '## The engine underneath\n\n' +
+          'Once you see the underlying structure of ' + t + ', individual details stop feeling random. ' +
+          'Most learners who struggle with ' + t + ' are struggling with missing mental models, not missing facts.\n\n' +
+          '### Concept 1 — Start with the system\n\n' +
+          'Ask: *what inputs, what outputs, what rules?* Almost everything in ' + t + ' can be framed this way.\n\n' +
+          '### Concept 2 — The 80/20 core\n\n' +
+          'About 20% of ' + t + ' powers 80% of real-world use. Identify that core early and revisit it often — ' +
+          'that is the portion worth drilling to automaticity.\n\n' +
+          '### Concept 3 — Compare, don\'t just collect\n\n' +
+          'For each new idea, name one thing it is *similar* to and one thing it is *different from* ' +
+          'something you already know. Comparisons lock ideas into long-term memory.\n\n' +
+          '> Spaced practice beats cramming: briefly revisit this lesson tomorrow. One review now saves three reviews later.\n\n' +
+          '**Try this:** pick any example of ' + t + ' you\'ve seen recently and label its system, its 80/20 core, and one comparison.'
+      },
+      { id:'l3', title:'Working with ' + t + ' — hands-on practice',
+        content:
+          '## Doing beats reading\n\n' +
+          'This is the skill-building lesson. Knowledge alone decays; skill survives. Work through each step ' +
+          'below *actively* — write, speak, or build as you go.\n\n' +
+          '### Worked example\n\n' +
+          '> Step 1: Define the goal — what does *done* look like for this attempt at ' + t + '?\n' +
+          '> Step 2: Choose the smallest version of the real thing you can do in 15 minutes.\n' +
+          '> Step 3: Do it. Make mistakes deliberately fast.\n' +
+          '> Step 4: Check against the core concepts from the previous lesson — what held up, what surprised you?\n\n' +
+          '### Common first tries\n\n' +
+          '- Trying to be perfect instead of trying to be *done*.\n' +
+          '- Skipping the goal-setting step and drifting.\n' +
+          '- Not reviewing mistakes within 24 hours.\n\n' +
+          '**Try this:** run the four-step worked example on a real, small task involving ' + t + ' — right now, ' +
+          'before you read further. Future-you will thank you.'
+      },
+      { id:'l4', title:'Pitfalls, retrieval & your next steps',
+        content:
+          '## Where learners get stuck\n\n' +
+          'Every teacher of ' + t + ' sees the same traps. Name them once and you\'ll dodge a week of confusion.\n\n' +
+          '### Trap 1 — Confusing understanding with memory\n\n' +
+          'Reading something and nodding is not learning. If you can\'t reproduce it from memory tomorrow, ' +
+          'it isn\'t in long-term storage yet.\n\n' +
+          '### Trap 2 — Context jumping\n\n' +
+          'Mastering ' + t + ' in *one* context then expecting it to transfer automatically. Transfer has to be practiced.\n\n' +
+          '### Trap 3 — Skipping retrieval\n\n' +
+          'Re-reading is comfortable and useless. Quizzing yourself is uncomfortable and effective. Do the quizzes.\n\n' +
+          '## Your next steps\n\n' +
+          '1. Re-solve the worked example from lesson 3 *from memory* in two days.\n' +
+          '2. Quiz yourself on every lesson\'s quiz — that is retrieval practice.\n' +
+          '3. Ask a follow-up in the chat dock for any concept here that still feels fuzzy.\n\n' +
+          '> Learning ' + t + ' is a loop: study → practice → get feedback → repeat. You have everything you need to run that loop now. 🎉'
+      }
+    ];
+    return {
+      title: 'Learning ' + t,
+      mission: 'Your goal is to build durable, usable understanding of ' + t + ' — not just recognize it, ' +
+               'but be able to explain, apply, and extend it on your own. Each lesson is short, built around ' +
+               'one tangible win, and ends with retrieval practice so knowledge sticks.',
+      outline: lessons.map(l => ({ id:l.id, title:l.title })),
+      lessons: lessons.map(l => ({
+        id:l.id, title:l.title, content:l.content,
+        quiz: [
+          { q:'Which habit best supports long-term retention of ' + t + '?',
+            options:[
+              'Quiz yourself from memory instead of re-reading once more',
+              'Write elaborate summaries and re-read each passage twice',
+              'Highlight lectures and review them only before tests',
+              'Cram large volumes of material in one single sitting'
+            ], answer:'Quiz yourself from memory instead of re-reading once more' },
+          { q:'How should you most effectively practice something new?',
+            options:[
+              'Use the smallest real example and deliberately practice',
+              'Wait for perfect conditions before starting to practice',
+              'Watch experts perform and skip the hands-on exercise',
+              'Practice the largest possible task completely each time'
+            ], answer:'Use the smallest real example and deliberately practice' }
+        ]
+      }))
+    };
+  }
+
+  async function _demoChat(messages, opts = {}){
+    const all = JSON.stringify(messages);
+    const last = _lastUserText(messages);
+    const isCurr  = all.includes('__CURRICULUM__');
+    const isSel   = all.includes('__SELECTION__');
+    const isPing  = all.includes('__PING__');
+
+    if (isPing) return 'pong';
+
+    if (isCurr){
+      const m = last.match(/TOPIC:\s*(.+)/i);
+      demoCtx.topic = (m ? m[1].trim() : '') || 'this topic';
+      return JSON.stringify(_demoCurriculumJson(demoCtx.topic));
+    }
+
+    if (isSel){
+      const { imgs, links } = _attachInfo(messages);
+      const sel = (last.match(/SELECTED:\s*"([\s\S]*?)"\s*\n/i) || [])[1] || 'the highlighted passage';
+      const q   = (last.match(/QUESTION:\s*(.+)/i)       || [])[1] || 'your question';
+      const topic = demoCtx.topic || 'this topic';
+      return (
+        'Let me look at that selection — **"' + sel.replace(/\s+/g,' ').slice(0,140) + '"** — in the context of this lesson on **' + topic + '**.\n\n' +
+        '**Short answer:** ' + q + ' The key is to see the selected passage as one part of a bigger system: ' +
+        'it connects what you learned earlier to what comes next. In practice, that means the sentence is ' +
+        'claiming a relationship — and your job as a learner is to find the *evidence* for it, then look for one counter-example.\n\n' +
+        '- **Why it matters here:** this is the exact spot where beginners either click or stall. Slowing down on this one idea pays off in every later lesson.\n' +
+        '- **A way to check yourself:** paraphrase the selection in one sentence, then ask “so what?” twice.\n' +
+        '- **Try this:** apply the selection to a concrete example of your own before continuing.\n\n' +
+        (imgs ? '📷 I can see your **' + imgs + ' attached image(s)** — treat them as an example of the concept. Compare it with the text: where does the example fit, and where does it stretch the definition?' + '\n' : '') +
+        (links ? '🔗 I\'ve added your **' + links + ' link(s)** to the reference stack (v1 doesn\'t fetch their content yet — ask me to reason about them and I\'ll consider them as pointers).' + '\n' : '') +
+        '\nWant me to expand on any branch of this answer, or should we turn it into a note in the workspace?'
+      );
+    }
+
+    // generic follow-up in the dock
+    const topic = demoCtx.topic || 'this topic';
+    const brief = last.replace(/\s+/g,' ').slice(0,120);
+    return (
+      'Good question — **“' + brief + '”** — especially in the middle of learning **' + topic + '**.\n\n' +
+      'Here\'s the frame I\'d use: separate *what you already know* from *what\'s genuinely new* in your question. ' +
+      'Most follow-ups are one of three types — a *definition gap*, a *how-does-it-fit gap*, or a *practice gap*. ' +
+      'Name yours, and the fix is usually small.\n\n' +
+      '- If it\'s a **definition gap**: go back to Lesson 1\'s working definition and re-read it out loud.\n' +
+      '- If it\'s a **fit gap**: try the comparison exercise — similar to / different from something you already know.\n' +
+      '- If it\'s a **practice gap**: run the four-step worked example from Lesson 3 on a tiny real case.\n\n' +
+      'I can go deeper on any of these, or generate a mini-exercise for you on the spot. What would help most?'
+    );
+  }
+
+  /* ---------------- public seam ---------------- */
+  async function chat(messages, opts = {}){
+    if (cfg.demo) return _demoChat(messages, opts);
+    return _realChat(messages, opts);
+  }
+
+  async function ping(){
+    if (cfg.demo) return 'Demo mode is active — no real connection needed.';
+    const reply = await _realChat([
+      { role:'system', content:'Reply with exactly the single word: pong  [INTENT: __PING__]' },
+      { role:'user', content:'ping' }
+    ], { temperature: 0 });
+    return 'Connected ✓ Model replied: ' + reply.trim();
+  }
+
+  return { configure, chat, ping, isDemo, source, getConfig };
+})();
+
+/* ============================================================
+   Markdown renderer (safe, minimal — enough for lessons/answers).
+   Input is plain text; everything is HTML-escaped first.
+   ============================================================ */
+function renderMarkdown(src){
+  let s = esc(src);
+
+  // fenced code blocks -> pre
+  s = s.replace(/```([\s\S]*?)```/g, (_, code) => '<pre><code>' + code.replace(/^\w*\n/, '') + '</code></pre>');
+
+  // blockquote lines
+  s = s.split('\n').map(line => /^\s*&gt;\s?/.test(line) ? '<blockquote>…</blockquote>'.replace('…', line.replace(/^\s*&gt;\s?/, '')) : line).join('\n');
+  s = s.replace(/(<blockquote>[\s\S]*?<\/blockquote>(?:\n<blockquote>[\s\S]*?<\/blockquote>)*)/g, m => '<blockquote>' + m.replace(/<blockquote>|<\/blockquote>|\n/g, '') + '</blockquote>');
+
+  // headings
+  s = s.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+  s = s.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+  s = s.replace(/^# (.+)$/gm, '<h2>$1</h2>');
+
+  // hr
+  s = s.replace(/^---\s*$/gm, '<hr>');
+
+  // lists (simple, non-nested)
+  s = s.replace(/^[\t ]*- (.+)$/gm, '<li>$1</li>');
+  s = s.replace(/((?:<li>.*<\/li>\n?)+)/g, '<ul>$1</ul>');
+  s = s.replace(/^[\t ]*(\d+)\. (.+)$/gm, '<li>$2</li>');
+  s = s.replace(/((?:<li>.*<\/li>\n?)+)/g, '<ol>$1</ol>');
+
+  // inline: bold, italic, inline code, links
+  s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  s = s.replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>');
+  s = s.replace(/`([^`\n]+)`/g, '<code>$1</code>');
+  s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+
+  // "Try this" callouts in lesson content
+  s = s.replace(/<strong>Try this:<\/strong>/g, '<b>Try this:</b>');
+
+  // paragraphs
+  s = s.split(/\n{2,}/).map(block => {
+    const b = block.trim();
+    if (!b) return '';
+    if (/^<(h[23]|ul|ol|pre|blockquote|hr|li)/.test(b)) return b;
+    return '<p>' + b.replace(/\n/g, '<br>') + '</p>';
+  }).join('\n');
+
+  return s;
+}
+
+/* ============================================================
+   App state
+   ============================================================ */
+const App = {
+  settings: { ...LLMService.getConfig() },          // mirrors LLMService cfg + apiKey (kept out of getConfig)
+  ws: null,      // { title, mission, outline, lessons, notes[], topic, createdAt }
+  currentLessonId: null,
+  chat: [],      // [{role, content}] docked chat history
+  phrase: '',    // last user message (for dock context)
+  bubble: { lessonId:null, images:[], links:[], refs:[] }
+};
+
+function saveSettings(){ Storage.set(KEYS.settings, App.settings); }
+function saveWorkspace(){ Storage.set(KEYS.workspace, App.ws); }
+const saveChat = debounce(() => Storage.set(KEYS.chat, App.chat), 300);
+function persistAll(){ saveSettings(); if (App.ws) saveWorkspace(); saveChat(); }
+
+/* ============================================================
+   UI renderers
+   ============================================================ */
+function renderSourceBadges(){
+  const demo = LLMService.isDemo();
+  $('demoModeChip').textContent = demo ? '🧪 Demo mode: ON' : '🧪 Demo mode: OFF';
+  $('demoModeChip').style.borderColor = demo ? 'rgba(251,191,36,.35)' : 'var(--border2)';
+  $('demoModeChip').style.color = demo ? 'var(--warn)' : 'var(--muted)';
+  const m = App.settings.model || '—';
+  $('modelChip').textContent = 'Model: ' + (demo ? 'simulated locally' : m);
+  $('dockModel').textContent = demo ? '· demo' : '· ' + m;
+}
+
+/* ---- start state ---- */
+function showStart(){
+  $('startView').hidden = false;
+  $('workspaceView').hidden = true;
+  $('setupView').hidden = true;
+  $('dock').hidden = true;
+  renderSourceBadges();
+}
+
+/* ---- setup progress ---- */
+const SETUP_STEPS = ['Reading the mission brief','Designing the outline','Writing lessons & examples','Polishing quizzes'];
+function showSetup(topic){
+  $('startView').hidden = true;
+  $('workspaceView').hidden = true;
+  $('dock').hidden = true;
+  $('setupView').hidden = false;
+  $('setupTopic').textContent = 'Topic: “' + topic + '”';
+  $('setupSteps').innerHTML = SETUP_STEPS.map((s,i) =>
+    '<div class="stepRow" data-step="'+i+'"><span class="stepDot"></span>'+esc(s)+'<span class="spin" style="visibility:hidden"></span></div>').join('');
+  let i = 0;
+  const tick = () => {
+    const rows = $('setupSteps').querySelectorAll('.stepRow');
+    rows.forEach((r,idx) => {
+      r.classList.toggle('active', idx === Math.min(i, rows.length-1));
+      r.classList.toggle('done', idx < i);
+      r.querySelector('.spin').style.visibility = (idx === Math.min(i, rows.length-1)) ? 'visible' : 'hidden';
+    });
+  };
+  tick();
+  const iv = setInterval(() => { i++; if (i > SETUP_STEPS.length) i = SETUP_STEPS.length; tick(); }, 700);
+  return () => { clearInterval(iv); i = SETUP_STEPS.length; tick(); $('setupView').querySelectorAll('.spin').forEach(s => s.style.visibility='hidden'); };
+}
+
+/* ---- workspace ---- */
+function renderSidebar(){
+  $('sbMission').textContent = App.ws.mission || '';
+  const cur = App.currentLessonId;
+  $('sbOutline').innerHTML = App.ws.outline.map(o =>
+    '<div class="outlineItem' + (o.id === cur ? ' current' : '') + '" data-nav="' + esc(o.id) + '">' +
+    '<span class="outlineNum">' + esc(o.id.replace('l','')) + '</span>' +
+    '<span>' + esc(o.title) + '</span></div>').join('');
+  $('notesCount').textContent = App.ws.notes.filter(n => n.lessonId === cur).length + ' note' +
+    (App.ws.notes.filter(n=>n.lessonId===cur).length === 1 ? '' : 's');
+}
+
+function renderLesson(){
+  const lesson = App.ws.lessons.find(l => l.id === App.currentLessonId);
+  if (!lesson) return;
+  $('lessonTitle').textContent = 'Lesson ' + lesson.id.replace('l','') + ' of ' + App.ws.lessons.length;
+  $('lessonH1').textContent = lesson.title;
+  const notes = (App.ws.notes || []).filter(n => n.lessonId === lesson.id);
+  let html = renderMarkdown(lesson.content);
+
+  // interactive quizzes
+  if (lesson.quiz && lesson.quiz.length){
+    html += lesson.quiz.map((qz, qi) =>
+      '<div class="quizBlock" data-quiz="' + qi + '">' +
+      '<div class="quizQ">✅ Quiz — ' + esc(qz.q) + '</div>' +
+      qz.options.map((opt, oi) =>
+        '<button class="quizOpt" data-opt="' + oi + '" data-answer="' + esc(qz.answer) + '">' +
+        '<span class="qLtr">' + String.fromCharCode(65 + oi) + '</span><span>' + esc(opt) + '</span></button>').join('') +
+      '</div>').join('');
+  }
+
+  // selection Q&A notes
+  if (notes.length){
+    html += '<div class="notesSection"><h3>📥 Selection Q&amp;A notes</h3>' + notes.slice().reverse().map(n =>
+      '<div class="noteCard" data-note="' + esc(n.id) + '">' +
+      '<div class="noteQuote">“' + esc(n.selection) + '”</div>' +
+      '<div class="noteQ">Q: ' + esc(n.question) + '</div>' +
+      '<div class="noteA">' + renderMarkdown(n.answer) + '</div>' +
+      '<div class="noteMeta"><span>' + esc(new Date(n.ts).toLocaleString()) + '</span>' +
+      '<button class="btn btn-ghost bubMini" data-delnote="' + esc(n.id) + '">Delete</button></div>' +
+      '</div>').join('') + '</div>';
+  }
+
+  $('lessonContent').innerHTML = html;
+  $('lessonContent').dataset.lesson = lesson.id;
+  $('prevLessonBtn').disabled = (App.currentLessonId === App.ws.lessons[0].id);
+  $('nextLessonBtn').disabled = (App.currentLessonId === App.ws.lessons[App.ws.lessons.length - 1].id);
+  renderSidebar();
+}
+
+function setDockOpen(open){
+  $('dock').classList.toggle('open', open);
+  $('app').classList.toggle('dock-open', open);
+}
+function showWorkspace(){
+  $('startView').hidden = true;
+  $('setupView').hidden = true;
+  $('workspaceView').hidden = false;
+  $('dock').hidden = false;
+  setDockOpen(true);
+  renderLesson();
+  renderChat();
+  renderSourceBadges();
+}
+
+function navTo(id){ App.currentLessonId = id; renderLesson(); $('mainArea').scrollTop = 0; }
+
+/* ---- docked chat ---- */
+function renderChat(){
+  const box = $('dockBody');
+  box.innerHTML = App.chat.map(m => {
+    if (m.role === 'user') return '<div class="dmsg user">' + esc(m.content) + '</div>';
+    if (m.role === 'error') return '<div class="dmsg err">⚠️ ' + esc(m.content) + '</div>';
+    return '<div class="dmsg bot">' + renderMarkdown(m.content) + '</div>';
+  }).join('');
+  box.scrollTop = box.scrollHeight;
+}
+
+/* ============================================================
+   Curriculum generation (via LLMService — the only LLM call for setup)
+   ============================================================ */
+const CURRICULUM_SYSTEM =
+  'You are the curriculum designer for "Teachly", a self-building teaching platform. ' +
+  'You design short, high-retention lessons grounded in learning science: retrieval practice, spacing, interleaving, desirable difficulty. ' +
+  'Philosophy: knowledge → skills → wisdom. Keep lessons short with one tangible win per lesson. ' +
+  'Design quiz answers with equal word/character counts so formatting never hints at the answer. ' +
+  'When relevant, suggest one high-trust primary source per lesson (books, docs, papers) as a plain-text line in the lesson content.\n\n' +
+  'Respond with STRICT JSON only — no prose, no code fences — matching EXACTLY this schema:\n' +
+  '{"title": string, "mission": string (2-3 sentences: why this learner is learning this), ' +
+  '"outline": [{"id":"l1","title":string}], ' +
+  '"lessons": [{"id":"l1","title":string, "content":string (complete markdown lesson: one H2 intro, 2-3 H3 blocks, bullet lists, blockquote rule or tip, and a "**Try this:**" exercise at the end), ' +
+  '"quiz": [{"q":string, "options":[4 equal-length strings], "answer":string (must exactly equal one option)}]}]}\n' +
+  'Rules: 4-6 lessons, ids l1..lN sequential; content must be full lesson text, not placeholders; every lesson needs a quiz with 4 equal-length options.\n\n' +
+  '[INTENT: __CURRICULUM__]';
+
+async function generateWorkspace(topic){
+  const content = await LLMService.chat([
+    { role:'system', content: CURRICULUM_SYSTEM },
+    { role:'user',   content: 'The student wants to learn about:\nTOPIC: ' + topic + '\n\nDesign the complete curriculum now.' }
+  ], { json:true, temperature: 0.7 });
+
+  let data = null, raw = content;
+  try { data = JSON.parse(raw); }
+  catch(e){
+    // tolerate providers that wrapped the JSON in prose or fences
+    const m = raw.match(/\{[\s\S]*\}/);
+    if (m){ try { data = JSON.parse(m[0]); } catch(e2){} }
+  }
+  if (!data || !Array.isArray(data.lessons) || !data.lessons.length){
+    throw new Error('The model did not return a valid curriculum JSON. Try again, or switch models.');
+  }
+  data.lessons.forEach((l, i) => { l.id = 'l' + (i+1); });
+  data.outline = data.lessons.map(l => ({ id:l.id, title:l.title }));
+  return data;
+}
+
+/* ============================================================
+   Selection-bubble Q&A (via LLMService)
+   ============================================================ */
+const SELECTION_SYSTEM =
+  'You are a teaching assistant embedded inside a learning workspace. The student selected a passage from the current lesson ' +
+  'and is asking a question about it. Answer accurately and pedagogically: connect to the lesson and the overall mission, ' +
+  'keep the answer focused, use markdown for structure. If the student attached image(s) they are provided as image parts in the ' +
+  'user content — use them as visual context (only if your model is vision-capable). If the student pasted links, treat them as ' +
+  'references they want considered (v1 does not fetch link content — note that to the student if relevant). ' +
+  'If the student referenced other workspace parts, use that context to ground the answer.\n\n' +
+  '[INTENT: __SELECTION__]';
+
+function selectionMessages(bubble, lessonTitle){
+  const sel = bubble.selText || '';
+  const question = bubble.question;
+  const links = (bubble.links || []).join('; ') || 'none';
+  const refs = bubble.refs ? bubble.refs.map(r => r.title + (r.snippet ? ': "' + r.snippet + '"' : '')).join(' | ') : 'none';
+  const text = 'The student selected this text from the lesson "' + lessonTitle + '":\n' +
+    'SELECTED: "' + sel + '"\n\n' +
+    'QUESTION: ' + question + '\n' +
+    'LINKS: ' + links + '\n' +
+    'REFERENCED WORKSPACE: ' + refs + '\n' +
+    'Attachments: ' + bubble.images.length + ' image(s) included below.';
+  const content = [{ type:'text', text }];
+  (bubble.images || []).forEach(img => content.push({ type:'image_url', image_url:{ url: img.dataUrl } }));
+  return [{ role:'system', content: SELECTION_SYSTEM }, { role:'user', content }];
+}
+
+/* ============================================================
+   Follow-up chat (via LLMService)
+   ============================================================ */
+const FOLLOWUP_SYSTEM =
+  'You are the teaching assistant for a self-building teaching workspace. You are given the workspace mission, outline, ' +
+  'the current lesson excerpt, and recent conversation. Answer the student\'s follow-up in the flow of the current lesson. ' +
+  'Use markdown. If the student wants a brand-new topic, suggest using the "New topic" button.\n\n' +
+  '[INTENT: __FOLLOWUP__]';
+
+function followupMessages(text){
+  const lesson = App.ws.lessons.find(l => l.id === App.currentLessonId);
+  const excerpt = lesson ? (lesson.content || '').slice(0, 1800) : '';
+  const outline = App.ws.outline.map(o => o.id + ' ' + o.title).join('; ');
+  const recent = App.chat.slice(-6).map(m => m.role + ': ' + String(m.content).slice(0,600)).join('\n');
+  return [
+    { role:'system', content: FOLLOWUP_SYSTEM },
+    { role:'user', content:
+        'MISSION: ' + (App.ws.mission||'') + '\n' +
+        'OUTLINE: ' + outline + '\n' +
+        'CURRENT LESSON ("' + (lesson ? lesson.title : '?') + '"): ' + excerpt + '\n\n' +
+        'Recent conversation:\n' + recent + '\n\n' +
+        'Student\'s new message: ' + text }
+  ];
+}
+
+/* ============================================================
+   Selection bubble controller
+   ============================================================ */
+const Bubble = {
+  el: $('bubble'),
+  open: false,
+  asking: false,
+
+  openAt(selText, x, y, lessonId){
+    this.open = true;
+    App.bubble.lessonId = lessonId;
+    this.el.hidden = false;
+    $('bubBody').scrollTop = 0;
+    $('selText').textContent = selText;
+    $('bubQ').value = '';
+    $('bubAns').innerHTML = '';
+    $('bubRes').classList.remove('on');
+    $('bubAskBtn').disabled = false;
+    $('bubAskBtn').textContent = 'Ask ✦';
+    $('bubAskBtn').style.display = '';
+    $('bubInsertBtn').style.display = 'none';
+    $('bubAgainBtn').style.display = 'none';
+    this.resetAttachments();
+
+    // reference selector
+    const sel = $('bubRefSel');
+    sel.innerHTML = '<option value="">📖 Reference: none</option>' +
+      '<option value="' + esc(lessonId) + '">Current lesson</option>' +
+      App.ws.lessons.map(l => '<option value="' + esc(l.id) + '">' + esc(l.title) + '</option>').join('');
+
+    this.position(x, y);
+    $('bubQ').focus();
+  },
+  resetAttachments(){
+    App.bubble.images = []; App.bubble.links = [];
+    $('bubImages').innerHTML = ''; $('bubLinks').innerHTML = '';
+    $('bubFileInput').value = '';
+  },
+  close(){
+    this.open = false;
+    this.el.hidden = true;
+    const sel = window.getSelection(); if (sel) sel.removeAllRanges();
+  },
+  position(x, y){
+    const w = this.el.offsetWidth, h = this.el.offsetHeight;
+    const vw = window.innerWidth, vh = window.innerHeight;
+    let left = Math.min(Math.max(8, x), vw - w - 8);
+    let top = (y + 12 + h <= vh - 8) ? y + 12 : Math.max(8, y - h - 12);
+    this.el.style.left = left + 'px';
+    this.el.style.top  = top + 'px';
+  },
+  addImage(file){
+    if (App.bubble.images.length >= 2){ toast('Max 2 images in v1 — resize, or use a model with larger context.'); return; }
+    const reader = new FileReader();
+    reader.onload = () => {
+      App.bubble.images.push({ name: file.name, dataUrl: reader.result });
+      const wrap = document.createElement('div');
+      wrap.className = 'thumbWrap';
+      wrap.innerHTML = '<img src="' + reader.result + '" alt=""><button class="thumbX" data-i="' + (App.bubble.images.length-1) + '">✕</button>';
+      $('bubImages').appendChild(wrap);
+    };
+    reader.readAsDataURL(file);
+  },
+  addLink(url){
+    if (!/^https?:\/\//i.test(url.trim())){ toast('Link must start with http(s)://'); return; }
+    App.bubble.links.push(url.trim());
+    const row = document.createElement('div');
+    row.className = 'linkRow';
+    row.innerHTML = '<span class="u">' + esc(url.trim()) + '</span><button class="thumbX" data-li="' + (App.bubble.links.length-1) + '">✕</button>';
+    $('bubLinks').appendChild(row);
+  },
+  showAnswer(md){
+    $('bubAns').innerHTML = renderMarkdown(md);
+    $('bubThink').style.display = 'none';
+    $('bubAskBtn').style.display = 'none';
+    $('bubInsertBtn').style.display = '';
+    $('bubAgainBtn').style.display = '';
+    $('bubRes').classList.add('on');
+    this.el.style.top = Math.max(8, Math.min(parseInt(this.el.style.top,10), window.innerHeight - this.el.offsetHeight - 8)) + 'px';
+  }
+};
+
+/* ---- bubble event wiring ---- */
+document.addEventListener('mouseup', (e) => {
+  const sel = window.getSelection();
+  if (!sel || sel.isCollapsed || !sel.toString().trim()){ if (Bubble.open && !Bubble.el.contains(e.target)) Bubble.close(); return; }
+  const anchor = sel.anchorNode;
+  if (!anchor || !anchor.parentElement) return;
+  const inMain = anchor.parentElement.closest('#mainArea');
+  const inLesson = anchor.parentElement.closest('#lessonContent');
+  const inBubbleOrDock = anchor.parentElement.closest('#bubble, #dock');
+  if (!inMain || inBubbleOrDock || !inLesson) return;
+  if (Bubble.open && Bubble.el.contains(e.target)) return;
+  const rect = sel.getRangeAt(0).getBoundingClientRect();
+  Bubble.openAt(sel.toString().trim().slice(0, 600), rect.right, rect.bottom, $('lessonContent').dataset.lesson);
+});
+document.addEventListener('mousedown', (e) => {
+  if (Bubble.open && !Bubble.el.contains(e.target) && !e.target.closest('#lessonContent')) Bubble.close();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && Bubble.open) { Bubble.close(); }
+  if (e.key === 'Enter' && !e.shiftKey && document.activeElement === $('bubQ')) { e.preventDefault(); askSelection(); }
+});
+
+async function askSelection(){
+  const q = $('bubQ').value.trim();
+  if (!q){ toast('Type a question first.'); return; }
+  Bubble.asking = true;
+  $('bubAskBtn').disabled = true;
+  $('bubAskBtn').textContent = 'Thinking…';
+  $('bubThink').style.display = 'flex';
+  $('bubRes').classList.add('on');
+  $('bubAns').innerHTML = '';
+
+  const refId = $('bubRefSel').value || null;
+  const refs = [];
+  if (refId){
+    const rl = App.ws.lessons.find(l => l.id === refId);
+    if (rl) refs.push({ title: rl.title, snippet: (rl.content||'').slice(0, 300) });
+  }
+  const lesson = App.ws.lessons.find(l => l.id === App.bubble.lessonId) || App.ws.lessons[0];
+  const bubble = { selText: $('selText').textContent, question: q, images: App.bubble.images, links: App.bubble.links, refs };
+
+  try {
+    const ans = await LLMService.chat(selectionMessages(bubble, lesson.title), { temperature: 0.6 });
+    App.bubble.lastAnswer = ans;           // held for "insert into workspace"
+    App.bubble.lastQuestion = q;
+    App.bubble.lastSelection = bubble.selText;
+    Bubble.showAnswer(ans);
+  } catch(err){
+    $('bubThink').style.display = 'none';
+    $('bubAskBtn').disabled = false;
+    $('bubAskBtn').textContent = 'Ask ✦';
+    $('bubRes').classList.remove('on');
+    errToast('Selection Q&A failed: ' + err.message + '  (or switch to Demo mode)');
+  } finally {
+    Bubble.asking = false;
+  }
+}
+
+function insertNoteFromBubble(){
+  if (!App.bubble.lastAnswer) return;
+  App.ws.notes = App.ws.notes || [];
+  App.ws.notes.push({
+    id: 'n' + Date.now(),
+    lessonId: App.bubble.lessonId,
+    selection: App.bubble.lastSelection,
+    question: App.bubble.lastQuestion,
+    answer: App.bubble.lastAnswer,
+    ts: now()
+  });
+  saveWorkspace();
+  renderLesson();                 // re-render lesson so note appears inline
+  toast('Note inserted into the lesson. Edit or delete it inline.');
+  Bubble.close();
+}
+
+/* ============================================================
+   Docked chat flow
+   ============================================================ */
+async function sendFollowup(){
+  const input = $('dockInput');
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+  App.chat.push({ role:'user', content:text });
+  renderChat(); saveChat();
+  // optimistic helper bubble
+  const typing = document.createElement('div');
+  typing.className = 'dmsg bot';
+  typing.innerHTML = '<span class="spin"></span> Teaching…';
+  $('dockBody').appendChild(typing); typing.scrollIntoView({block:'end'});
+  try {
+    const ans = await LLMService.chat(followupMessages(text), { temperature: 0.6 });
+    typing.remove();
+    App.chat.push({ role:'assistant', content: ans });
+    renderChat(); saveChat();
+  } catch(err){
+    typing.remove();
+    App.chat.push({ role:'error', content: err.message });
+    renderChat(); saveChat();
+  }
+}
+
+/* ============================================================
+   Main flow: first message -> generate workspace
+   ============================================================ */
+async function onFirstMessage(){
+  const topic = $('startMsg').value.trim();
+  if (!topic){ errToast('Type a topic first — e.g. “Introduction to Bayesian statistics”.'); return; }
+  $('startSendBtn').disabled = true;
+  $('startMsg').disabled = true;
+
+  App.chat.push({ role:'user', content: topic });
+  App.phrase = topic;
+  saveChat();
+
+  const finishSetup = showSetup(topic);
+  try {
+    const ws = await generateWorkspace(topic);   // -> LLMService
+    App.ws = { ...ws, notes: [], topic, createdAt: now() };
+    App.currentLessonId = App.ws.lessons[0].id;
+    finishSetup();
+    App.chat.push({ role:'assistant', content: 'Workspace ready — **' + App.ws.title + '** is set up (' + App.ws.lessons.length + ' lessons). Ask follow-ups here, or highlight any text in a lesson for selection Q&A.' });
+    saveWorkspace(); saveChat();
+    showWorkspace();
+  } catch(err){
+    finishSetup();
+    App.chat.pop();   // drop the user message so a retry starts clean
+    saveChat();
+    showStart();
+    errToast('Workspace generation failed: ' + err.message + ' — check ⚙️ Settings (base URL, model, key) or enable Demo mode.');
+  } finally {
+    $('startSendBtn').disabled = false;
+    $('startMsg').disabled = false;
+  }
+}
+
+/* ============================================================
+   Settings modal
+   ============================================================ */
+function openSettings(){
+  $('baseUrl').value = App.settings.baseUrl || '';
+  $('model').value   = App.settings.model || '';
+  $('apiKey').value  = App.settings.apiKey || '';
+  $('demoChk').checked = !!App.settings.demo;
+  $('modalOverlay').classList.add('show');
+}
+function saveSettingsFromModal(){
+  App.settings = {
+    baseUrl: $('baseUrl').value.trim(),
+    model:   $('model').value.trim(),
+    apiKey:  $('apiKey').value.trim(),
+    demo:    $('demoChk').checked
+  };
+  LLMService.configure(App.settings);
+  saveSettings();
+  renderSourceBadges();
+  closeSettings();
+  toast('Settings saved — ' + (LLMService.isDemo() ? 'Demo mode active.' : 'using ' + App.settings.model + '.'));
+}
+function closeSettings(){ $('modalOverlay').classList.remove('show'); }
+
+$('demoModeChip').addEventListener('click', () => {
+  App.settings.demo = !App.settings.demo;
+  if (App.settings.demo) App.settings.apiKey = '';
+  LLMService.configure(App.settings);
+  saveSettings(); renderSourceBadges();
+  toast(App.settings.demo ? 'Demo mode ON — responses simulated locally.' : 'Demo mode OFF — connect a real model in ⚙️ Settings.');
+});
+
+/* ============================================================
+   Init / restore
+   ============================================================ */
+function init(){
+  const savedSettings = Storage.get(KEYS.settings, null);
+  if (savedSettings){
+    // never restore an apiKey-settings object that would leak demo flag incorrectly; merge safe fields
+    App.settings = { baseUrl: savedSettings.baseUrl || 'https://api.openai.com/v1',
+                     model: savedSettings.model || 'gpt-4o-mini',
+                     apiKey: savedSettings.apiKey || '',
+                     demo: savedSettings.demo !== false };   // default to demo if unset
+  }
+  LLMService.configure(App.settings);
+
+  const savedChat = Storage.get(KEYS.chat, null);
+  if (Array.isArray(savedChat)) App.chat = savedChat;
+
+  const savedWs = Storage.get(KEYS.workspace, null);
+  if (savedWs && Array.isArray(savedWs.lessons) && savedWs.lessons.length){
+    App.ws = savedWs;
+    App.currentLessonId = savedWs.currentLessonId || savedWs.lessons[0].id;
+    if (!App.ws.lessons.some(l => l.id === App.currentLessonId)) App.currentLessonId = App.ws.lessons[0].id;
+    saveWorkspace();
+    showWorkspace();
+  } else {
+    showStart();
+  }
+
+  // ---------- event wiring ----------
+  $('startMsg').addEventListener('keydown', e => { if (e.key==='Enter' && !e.shiftKey){ e.preventDefault(); onFirstMessage(); } });
+  $('startSendBtn').addEventListener('click', onFirstMessage);
+  $('startSettingsBtn').addEventListener('click', openSettings);
+  $('openSettingsBtnTop').addEventListener('click', openSettings);
+  $('openSettingsBtn2').addEventListener('click', openSettings);
+  $('settingsCancel').addEventListener('click', closeSettings);
+  $('modalOverlay').addEventListener('mousedown', e => { if (e.target === $('modalOverlay')) closeSettings(); });
+  $('settingsSave').addEventListener('click', saveSettingsFromModal);
+  $('presetOpenAI').addEventListener('click', () => { $('baseUrl').value='https://api.openai.com/v1'; $('model').value='gpt-4o-mini'; });
+  $('presetOpenRouter').addEventListener('click', () => { $('baseUrl').value='https://openrouter.ai/api/v1'; $('model').value='openrouter/auto'; });
+  $('demoToggleBtn').addEventListener('click', () => { $('demoChk').checked = !$('demoChk').checked; });
+  $('keyToggleBtn').addEventListener('click', () => {
+    const k = $('apiKey'); const show = k.type === 'password'; k.type = show ? 'text' : 'password';
+    $('keyToggleBtn').textContent = show ? 'hide' : 'show';
+  });
+  $('pingBtn').addEventListener('click', async () => {
+    // apply current form values temporarily for the ping test
+    LLMService.configure({ baseUrl:$('baseUrl').value.trim(), model:$('model').value.trim(), apiKey:$('apiKey').value.trim(), demo:$('demoChk').checked });
+    $('pingBtn').disabled = true; $('pingBtn').textContent = '…';
+    try { toast(await LLMService.ping()); }
+    catch(e){ errToast('Connection failed: ' + e.message); }
+    finally { $('pingBtn').disabled = false; $('pingBtn').textContent = 'Test connection'; LLMService.configure(App.settings); }
+  });
+
+  $('dockHead').addEventListener('click', e => { if (e.target.closest('#dockToggle')) return; setDockOpen(!$('dock').classList.contains('open')); });
+  $('dockToggle').addEventListener('click', () => setDockOpen(!$('dock').classList.contains('open')));
+  $('dockSendBtn').addEventListener('click', sendFollowup);
+  $('dockInput').addEventListener('keydown', e => { if (e.key==='Enter'){ e.preventDefault(); sendFollowup(); } });
+
+  $('newTopicBtn').addEventListener('click', () => {
+    if (!confirm('Start a new topic? This clears the current workspace, notes and chat.')) return;
+    App.ws = null; App.chat = []; App.currentLessonId = null; App.bubble.lastAnswer = null;
+    Storage.del(KEYS.workspace); Storage.del(KEYS.chat);
+    $('startMsg').value = '';
+    showStart();
+  });
+
+  $('nextLessonBtn').addEventListener('click', () => {
+    const i = App.ws.lessons.findIndex(l => l.id === App.currentLessonId);
+    if (i < App.ws.lessons.length-1) navTo(App.ws.lessons[i+1].id);
+  });
+  $('prevLessonBtn').addEventListener('click', () => {
+    const i = App.ws.lessons.findIndex(l => l.id === App.currentLessonId);
+    if (i > 0) navTo(App.ws.lessons[i-1].id);
+  });
+  $('sbOutline').addEventListener('click', e => {
+    const item = e.target.closest('[data-nav]');
+    if (item) navTo(item.dataset.nav);
+  });
+
+  // quiz interaction (event delegation)
+  $('lessonContent').addEventListener('click', e => {
+    const opt = e.target.closest('.quizOpt');
+    if (opt){
+      const block = opt.closest('.quizBlock');
+      const chosen = opt.querySelector('span:last-child').textContent;
+      const answer = opt.dataset.answer;
+      block.querySelectorAll('.quizOpt').forEach(o => o.style.pointerEvents='none');
+      opt.classList.add(chosen === answer ? 'correct' : 'wrong');
+      if (chosen !== answer){
+        block.querySelectorAll('.quizOpt').forEach(o => { if (o.dataset.answer === answer) o.classList.add('correct'); });
+      }
+      if (!block.querySelector('.quizReveal')) {
+        const r = document.createElement('div');
+        r.className = 'quizReveal';
+        r.innerHTML = chosen === answer
+          ? '✓ Correct — solid retrieval practice. Moving on!'
+          : '✗ Not quite — the correct answer is <code>' + esc(answer) + '</code>. Note why, then re-try in a day (spacing works).';
+        block.appendChild(r);
+      }
+      return;
+    }
+    const del = e.target.closest('[data-delnote]');
+    if (del){
+      App.ws.notes = (App.ws.notes||[]).filter(n => n.id !== del.dataset.delnote);
+      saveWorkspace(); renderLesson(); toast('Note deleted.');
+    }
+  });
+
+  // bubble attachments
+  $('bubImgBtn').addEventListener('click', () => $('bubFileInput').click());
+  $('bubFileInput').addEventListener('change', e => { for (const f of e.target.files) Bubble.addImage(f); });
+  $('bubLinkBtn').addEventListener('click', () => {
+    const url = prompt('Paste a link (http(s)://…) — v1 does not fetch its content, it is sent as a reference:');
+    if (url) Bubble.addLink(url);
+  });
+  $('bubImages').addEventListener('click', e => {
+    const b = e.target.closest('.thumbX'); if (!b) return;
+    const i = +b.dataset.i;
+    App.bubble.images.splice(i,1);
+    const wraps = $('bubImages').children;
+    $('bubImages').innerHTML = '';
+    App.bubble.images.forEach((img,idx) => {
+      const w = document.createElement('div'); w.className='thumbWrap';
+      w.innerHTML = '<img src="' + img.dataUrl + '" alt=""><button class="thumbX" data-i="'+idx+'">✕</button>';
+      $('bubImages').appendChild(w);
+    });
+  });
+  $('bubLinks').addEventListener('click', e => {
+    const b = e.target.closest('.thumbX'); if (!b) return;
+    App.bubble.links.splice(+b.dataset.li,1);
+    $('bubLinks').innerHTML = '';
+    App.bubble.links.forEach((u,i) => {
+      const row = document.createElement('div'); row.className='linkRow';
+      row.innerHTML = '<span class="u">'+esc(u)+'</span><button class="thumbX" data-li="'+i+'">✕</button>';
+      $('bubLinks').appendChild(row);
+    });
+  });
+  $('bubAskBtn').addEventListener('click', askSelection);
+  $('bubInsertBtn').addEventListener('click', insertNoteFromBubble);
+  $('bubAgainBtn').addEventListener('click', () => {
+    $('bubRes').classList.remove('on'); $('bubAns').innerHTML='';
+    $('bubAskBtn').style.display=''; $('bubAskBtn').disabled=false; $('bubAskBtn').textContent='Ask ✦';
+    Bubble.resetAttachments(); $('bubQ').value=''; $('bubQ').focus();
+  });
+  $('bubClose').addEventListener('click', () => Bubble.close());
+
+  // ping badge on dock title tooltip
+  renderSourceBadges();
+}
+
+document.addEventListener('DOMContentLoaded', init);
+
+/* Expose a small debug/test surface (also used by automated checks). */
+window.TP = { LLMService, App, renderMarkdown, Bubble };
+</script>
+</body>
+</html>
